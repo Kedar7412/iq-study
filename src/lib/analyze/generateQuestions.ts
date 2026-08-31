@@ -13,9 +13,12 @@
  *
  * where:
  *   - `importance` is the concept's normalised importance from the analysis.
- *   - `curriculumOverlap` is 1 when the concept matches a curriculum term else 0.
+ *   - `curriculumOverlap` is a graded [0, 1] score (see
+ *     {@link curriculumOverlapScore}): 1.0 for a full-concept match, a scaled
+ *     fraction for a partial word-level match, and 0 for no overlap. A one-word
+ *     coincidence therefore contributes far less than a full-topic match.
  *   - CONCEPT_WEIGHT (0.6) + CURRICULUM_WEIGHT (0.4) = 1, so a maximally
- *     important concept that also overlaps the curriculum scores 1.0.
+ *     important concept that also fully overlaps the curriculum scores 1.0.
  *
  * The rationale string records which signals fired so the UI can explain the
  * score. Results are returned sorted by probability descending.
@@ -23,10 +26,7 @@
 
 import { z } from "zod";
 import type { LLMProvider } from "@/lib/llm/types";
-import {
-  curriculumTerms,
-  conceptMatchesCurriculum,
-} from "./analyzeBook";
+import { curriculumTerms, curriculumOverlapScore } from "./analyzeBook";
 import {
   examQuestionSchema,
   type BookAnalysis,
@@ -94,10 +94,9 @@ export async function generateQuestions(
         { system: "Explain this concept concisely for an exam answer." },
       );
 
-      const overlaps = conceptMatchesCurriculum(kc.concept, terms);
+      const overlap = curriculumOverlapScore(kc.concept, terms);
       const probability = clamp01(
-        CONCEPT_WEIGHT * kc.importance +
-          CURRICULUM_WEIGHT * (overlaps ? 1 : 0),
+        CONCEPT_WEIGHT * kc.importance + CURRICULUM_WEIGHT * overlap,
       );
 
       const questionType = questionTypeFor(i);
@@ -110,8 +109,8 @@ export async function generateQuestions(
 
       const rationaleParts = [
         `Concept importance ${kc.importance.toFixed(2)} (weight ${CONCEPT_WEIGHT}).`,
-        overlaps
-          ? `Matches the curriculum (weight ${CURRICULUM_WEIGHT}).`
+        overlap > 0
+          ? `Curriculum overlap ${overlap.toFixed(2)} (weight ${CURRICULUM_WEIGHT}).`
           : "No curriculum overlap detected.",
       ];
 

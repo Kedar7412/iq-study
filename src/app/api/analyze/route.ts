@@ -11,6 +11,7 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { getSession } from "@/lib/auth/session";
 import { getLLMProvider } from "@/lib/llm";
 import { getBookStore } from "@/lib/store";
 import { analyzeBook } from "@/lib/analyze/analyzeBook";
@@ -28,6 +29,11 @@ const analyzeSchema = z.object({
 });
 
 export async function POST(request: Request): Promise<NextResponse> {
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
+  }
+
   let body: unknown;
   try {
     body = await request.json();
@@ -48,7 +54,9 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   const { bookId, curriculum, count } = parsed.data;
   const store = getBookStore();
-  const book = await store.get(bookId);
+  // Ownership is enforced by the store: a book owned by another user resolves
+  // to undefined, so a non-owner gets the same 404 as a missing book.
+  const book = await store.get(bookId, session.sub);
   if (!book) {
     return NextResponse.json(
       { error: `No book found for id "${bookId}".` },
@@ -64,7 +72,11 @@ export async function POST(request: Request): Promise<NextResponse> {
       count,
     });
 
-    await store.saveAnalysis(bookId, { curriculum, analysis, questions });
+    await store.saveAnalysis(bookId, session.sub, {
+      curriculum,
+      analysis,
+      questions,
+    });
 
     return NextResponse.json({ bookId, analysis, questions });
   } catch {

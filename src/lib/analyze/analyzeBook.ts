@@ -64,17 +64,51 @@ export function curriculumTerms(curriculum?: Curriculum): Set<string> {
 }
 
 /**
- * Return true when a concept overlaps the curriculum: either the whole concept
- * matches a curriculum term, or any word of the concept does.
+ * Return true when a concept overlaps the curriculum at all: either the whole
+ * concept matches a curriculum term, or any word of the concept does.
+ *
+ * Retained for callers that only need a boolean; scoring paths should prefer
+ * the graded {@link curriculumOverlapScore} so a one-word coincidence does not
+ * count the same as a full-topic match.
  */
 export function conceptMatchesCurriculum(
   concept: string,
   terms: Set<string>,
 ): boolean {
-  if (terms.size === 0) return false;
+  return curriculumOverlapScore(concept, terms) > 0;
+}
+
+/**
+ * Graded curriculum overlap in [0, 1].
+ *
+ * A full-concept match (the whole normalised concept is a curriculum term)
+ * scores 1.0. Otherwise the score is the fraction of the concept's words that
+ * are curriculum terms, capped just below a full match so a partial word-level
+ * hit never outranks an exact topic match:
+ *
+ *   score = matchedWords / totalWords, then scaled by PARTIAL_MATCH_CEILING.
+ *
+ * So a two-word concept sharing one common word with the syllabus scores ~0.45
+ * rather than 1.0, while a concept whose every word is on the syllabus (but is
+ * not itself a listed topic) approaches, but never reaches, a full match. This
+ * keeps loosely-related concepts from being pulled to the top of the "ultra
+ * high probability" list on a single coincidental word.
+ */
+export const PARTIAL_MATCH_CEILING = 0.9;
+
+export function curriculumOverlapScore(
+  concept: string,
+  terms: Set<string>,
+): number {
+  if (terms.size === 0) return 0;
   const normalized = normalizeConcept(concept);
-  if (terms.has(normalized)) return true;
-  return normalized.split(" ").some((word) => terms.has(word));
+  if (terms.has(normalized)) return 1;
+  const words = normalized.split(" ").filter(Boolean);
+  if (words.length === 0) return 0;
+  const matched = words.filter((word) => terms.has(word)).length;
+  if (matched === 0) return 0;
+  const fraction = matched / words.length;
+  return Number((fraction * PARTIAL_MATCH_CEILING).toFixed(4));
 }
 
 /**
@@ -145,14 +179,15 @@ export async function analyzeBook(
     ...[...merged.values()].map((e) => e.frequency),
   );
 
+  // Max additive boost for a concept that fully matches the curriculum. Partial
+  // (word-level) overlaps receive a proportional fraction of this, so a single
+  // coincidental word nudges importance rather than jumping it a full 0.3.
   const CURRICULUM_BOOST = 0.3;
 
   const keyConcepts: KeyConcept[] = [...merged.values()]
     .map((entry) => {
       const base = entry.frequency / maxFrequency;
-      const boost = conceptMatchesCurriculum(entry.display, terms)
-        ? CURRICULUM_BOOST
-        : 0;
+      const boost = CURRICULUM_BOOST * curriculumOverlapScore(entry.display, terms);
       const importance = Math.min(1, Number((base + boost).toFixed(4)));
       return {
         concept: entry.display,

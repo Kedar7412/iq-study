@@ -23,6 +23,13 @@ import type {
 export interface StoredBook {
   /** Generated unique identifier. */
   bookId: string;
+  /**
+   * Id of the user who uploaded (and therefore owns) this book. Set at upload
+   * time from the session. Every read/analyze/study path must verify the
+   * requesting user matches this owner, so one learner can never reach another
+   * learner's book by id (tenant isolation / IDOR protection).
+   */
+  userId: string;
   /** Source metadata. */
   meta: ParsedBookMeta;
   /** Full extracted text. */
@@ -51,14 +58,22 @@ export interface AnalysisResult {
 /** Storage abstraction for ingested books. */
 export interface BookStore {
   save(book: StoredBook): Promise<void>;
-  get(bookId: string): Promise<StoredBook | undefined>;
-  list(): Promise<StoredBook[]>;
   /**
-   * Attach analysis output to an existing book. Returns the updated record, or
-   * `undefined` if no book exists for `bookId`.
+   * Fetch a book by id, scoped to its owner. Returns the record only when it
+   * exists AND `userId` matches the stored owner; otherwise `undefined`. This
+   * makes ownership enforcement the store's responsibility so callers can never
+   * accidentally leak another user's book.
+   */
+  get(bookId: string, userId: string): Promise<StoredBook | undefined>;
+  /** List the books owned by `userId`, most recent first. */
+  list(userId: string): Promise<StoredBook[]>;
+  /**
+   * Attach analysis output to an existing book owned by `userId`. Returns the
+   * updated record, or `undefined` if no matching owned book exists.
    */
   saveAnalysis(
     bookId: string,
+    userId: string,
     result: AnalysisResult,
   ): Promise<StoredBook | undefined>;
 }
@@ -71,20 +86,25 @@ class InMemoryBookStore implements BookStore {
     this.books.set(book.bookId, book);
   }
 
-  async get(bookId: string): Promise<StoredBook | undefined> {
-    return this.books.get(bookId);
+  async get(bookId: string, userId: string): Promise<StoredBook | undefined> {
+    const book = this.books.get(bookId);
+    if (!book || book.userId !== userId) return undefined;
+    return book;
   }
 
-  async list(): Promise<StoredBook[]> {
-    return [...this.books.values()].sort((a, b) => b.createdAt - a.createdAt);
+  async list(userId: string): Promise<StoredBook[]> {
+    return [...this.books.values()]
+      .filter((b) => b.userId === userId)
+      .sort((a, b) => b.createdAt - a.createdAt);
   }
 
   async saveAnalysis(
     bookId: string,
+    userId: string,
     result: AnalysisResult,
   ): Promise<StoredBook | undefined> {
     const existing = this.books.get(bookId);
-    if (!existing) return undefined;
+    if (!existing || existing.userId !== userId) return undefined;
     const updated: StoredBook = {
       ...existing,
       curriculum: result.curriculum,

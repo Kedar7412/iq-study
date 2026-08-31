@@ -6,6 +6,7 @@
  */
 
 import { NextResponse } from "next/server";
+import { getSession } from "@/lib/auth/session";
 import { getBookStore } from "@/lib/store";
 
 export const runtime = "nodejs";
@@ -14,8 +15,14 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ bookId: string }> },
 ): Promise<NextResponse> {
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
+  }
+
   const { bookId } = await params;
-  const book = await getBookStore().get(bookId);
+  // Scoped to the owner: another user's book (or a missing one) is a 404.
+  const book = await getBookStore().get(bookId, session.sub);
 
   if (!book) {
     return NextResponse.json(

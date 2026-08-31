@@ -200,31 +200,45 @@ function findQuestion(id: string): Question | undefined {
 }
 
 /**
- * Validate that every provided answer references a real question and option.
- * Returns the list of resolved {@link QuestionOption}s. Throws on invalid input
- * so callers (route handlers) can return a 400.
+ * Validate that the submission answers every questionnaire item and that each
+ * answer references a real question and option. Returns the list of resolved
+ * {@link QuestionOption}s in questionnaire order. Throws on invalid input so
+ * callers (route handlers) can return a 400.
+ *
+ * A partial submission is rejected: a profile derived from a subset of answers
+ * is skewed (e.g. a single visual answer yields `visual: 1`) and then drives
+ * every downstream adaptation, so we require the complete set before scoring.
  */
 export function validateAnswers(
   answers: QuestionnaireAnswers,
 ): QuestionOption[] {
-  const resolved: QuestionOption[] = [];
+  // Reject any answer that references an unknown question or option first, so
+  // the error is specific rather than a generic "incomplete" message.
   for (const [questionId, optionId] of Object.entries(answers)) {
     const question = findQuestion(questionId);
     if (!question) {
       throw new Error(`Unknown question id: ${questionId}`);
     }
-    const option = question.options.find((o) => o.id === optionId);
-    if (!option) {
+    if (!question.options.some((o) => o.id === optionId)) {
       throw new Error(
         `Unknown option "${optionId}" for question "${questionId}"`,
       );
     }
-    resolved.push(option);
   }
-  if (resolved.length === 0) {
-    throw new Error("No answers provided.");
+
+  // Require an answer for every questionnaire item.
+  const missing = QUESTIONNAIRE.filter((q) => !answers[q.id]).map((q) => q.id);
+  if (missing.length > 0) {
+    throw new Error(
+      `Please answer every question. Missing: ${missing.join(", ")}`,
+    );
   }
-  return resolved;
+
+  // Resolve in questionnaire order for a stable, deterministic result.
+  return QUESTIONNAIRE.map((question) => {
+    const optionId = answers[question.id]!;
+    return question.options.find((o) => o.id === optionId)!;
+  });
 }
 
 /** Clamp a number into [min, max]. */

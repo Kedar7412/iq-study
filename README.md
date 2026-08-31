@@ -99,7 +99,17 @@ IQ Study ships a minimal, provider-free auth suitable for Vercel:
   httpOnly cookie (`iq_session`), signed with `AUTH_SECRET`. No server-side session store, so
   it is serverless-friendly.
 - **Gating**: a Next.js proxy (`src/proxy.ts`) redirects unauthenticated visitors to `/login`
-  for protected routes (`/upload`, `/books`, `/onboarding`, `/study`).
+  for protected _pages_ (`/upload`, `/books`, `/onboarding`, `/study`). The content _API_
+  routes (`/api/upload`, `/api/analyze`, `/api/books/[bookId]`, `/api/study/*`,
+  `/api/onboarding`) do not rely on the proxy: each verifies the session server-side with
+  `getSession()` and returns `401` when unauthenticated.
+- **Per-user book ownership**: every uploaded book records the owner's user id (`StoredBook.userId`,
+  set from the session at upload time). The book store resolves a book only for its owner, so
+  reads, analysis, and study of a book by id are all scoped to the uploader — a different user
+  gets a `404`, closing the IDOR gap. Review decks are likewise keyed per `(userId, bookId)`.
+- **Complete questionnaire required**: `validateAnswers` (and therefore `scoreProfile` /
+  `POST /api/onboarding`) rejects a partial submission with `400` until every questionnaire
+  question is answered, so a profile is never derived from a lopsided subset of answers.
 - **Onboarding**: `/onboarding` presents a fixed 10-question learning-style questionnaire.
   `scoreProfile` (pure, unit-tested) turns answers into a normalized `LearningProfile`
   (visual / auditory / reading-writing / kinesthetic scores, pace, preferred review interval,

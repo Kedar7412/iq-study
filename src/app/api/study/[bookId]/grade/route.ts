@@ -64,7 +64,7 @@ export async function POST(
     );
   }
 
-  const book = await getBookStore().get(bookId);
+  const book = await getBookStore().get(bookId, session.sub);
   if (!book) {
     return NextResponse.json(
       { error: `No book found for id "${bookId}".` },

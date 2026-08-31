@@ -9,6 +9,7 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { getSession } from "@/lib/auth/session";
 import { parseBook, UnsupportedFileTypeError } from "@/lib/ingest/parse";
 import { chunkText } from "@/lib/ingest/chunk";
 import { generateBookId, getBookStore } from "@/lib/store";
@@ -29,6 +30,11 @@ const uploadSchema = z.object({
 });
 
 export async function POST(request: Request): Promise<NextResponse> {
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
+  }
+
   let formData: FormData;
   try {
     formData = await request.formData();
@@ -64,6 +70,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     const bookId = generateBookId();
     await getBookStore().save({
       bookId,
+      userId: session.sub,
       meta,
       text,
       chunks,
