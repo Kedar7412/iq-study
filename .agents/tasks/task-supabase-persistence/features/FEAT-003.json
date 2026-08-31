@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "docs",
   "description": "Document the new Supabase persistence: update .env.example and the README's 'Environment variables', 'Deployment (Vercel)', and 'Persistence caveat' sections to reflect that persistence is now durable via Supabase when configured, and still falls back to in-memory when unconfigured. Depends on FEAT-002 being implemented (docs describe the shipped behavior).",
-  "status": "pending",
+  "status": "completed",
   "steps": [
     "Update `.env.example`: add `SUPABASE_URL=https://yuukqpmxaxsqewpgjlbu.supabase.co` and `SUPABASE_SERVICE_ROLE_KEY=` (left blank) with a comment that the service_role key is a SECRET pasted from Supabase dashboard -> Project Settings -> API -> service_role key, must NEVER be exposed to the client or committed, and that when either var is empty the app falls back to the in-memory store so build/tests/dev stay keyless. Do NOT add NEXT_PUBLIC_* client vars (all DB access is server-side).",
     "Update README 'Environment variables' table: add rows for SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (Required: No for keyless dev/CI, but required for durable production persistence), describing the fallback-to-in-memory behavior when unset.",
@@ -22,5 +22,5 @@
     "source ~/.nvm/nvm.sh && nvm use 22 && npm run build"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Docs-only change. Updated .env.example (added SUPABASE_URL example value + blank SUPABASE_SERVICE_ROLE_KEY with secret/RLS warning and keyless-fallback note; no NEXT_PUBLIC_* vars). Updated README: Architecture store bullet, Environment variables table (two new rows + footnote), Persistence text, review-store line, Deployment (Vercel) env-var step + Production persistence note (schema managed on hosted DB, no migration tooling here), and MVP in-scope/assumptions/roadmap lines to reflect durable-Supabase-with-in-memory-fallback consistently. No secret value written anywhere. Verified keyless: npm run lint (0), npm test (93 passed / 16 files), npm run build (success)."
 }
