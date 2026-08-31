@@ -15,9 +15,10 @@ The full user journey:
 
 **register / login → onboarding profile → upload book → analyze + curriculum → high-probability questions → adaptive spaced-repetition study.**
 
-Every layer works keyless: with no `OPENAI_API_KEY` the AI falls back to a deterministic
-mock provider, and with no `AUTH_SECRET` sessions use a documented dev-only fallback, so
-build, tests, local dev, and preview deployments all work with zero configuration.
+Every layer works keyless: with no AI provider key (neither `XAI_API_KEY` nor `OPENAI_API_KEY`)
+the AI falls back to a deterministic mock provider, and with no `AUTH_SECRET` sessions use a
+documented dev-only fallback, so build, tests, local dev, and preview deployments all work with
+zero configuration.
 
 ## Tech stack
 
@@ -33,8 +34,9 @@ build, tests, local dev, and preview deployments all work with zero configuratio
   (all server logic runs on the `nodejs` runtime and validates input with zod).
 - **`src/lib/ingest`** — book parsing (PDF via `unpdf`, plain text) and deterministic
   overlapping chunking.
-- **`src/lib/llm`** — pluggable `LLMProvider` abstraction with a real OpenAI provider and a
-  deterministic `MockProvider` fallback (selected automatically when no key is present).
+- **`src/lib/llm`**: pluggable `LLMProvider` abstraction with an xAI (Grok) provider, a real
+  OpenAI provider, and a deterministic `MockProvider` fallback (selected automatically when no
+  key is present). xAI is OpenAI-compatible, so both live providers share the same client shape.
 - **`src/lib/analyze`** — curriculum-aware `BookAnalysis` (summary, key concepts with source
   provenance, topic outline) and ranked `ExamQuestion` generation.
 - **`src/lib/study`** — the learning layer: `learningProfile` (VARK-style onboarding scoring),
@@ -79,8 +81,10 @@ See [`.env.example`](./.env.example) for the full list. Copy it to `.env.local` 
 
 | Variable         | Required | Description                                                                                  |
 | ---------------- | -------- | -------------------------------------------------------------------------------------------- |
+| `XAI_API_KEY`    | No       | Grok / xAI API key. When empty, the app falls back to a deterministic mock AI provider.      |
+| `XAI_MODEL`      | No       | xAI chat model used when the xAI provider is active. Defaults to `grok-3-mini`.              |
 | `OPENAI_API_KEY` | No       | OpenAI API key. When empty, the app falls back to a deterministic mock AI provider.          |
-| `LLM_PROVIDER`   | No       | AI provider: `openai` or `mock`. Defaults to `mock` when no `OPENAI_API_KEY` is present.     |
+| `LLM_PROVIDER`   | No       | AI provider: `xai`, `openai`, or `mock`. Auto-selects `xai` when `XAI_API_KEY` is set; otherwise defaults to `mock`. |
 | `AUTH_SECRET`    | No\*     | Secret used to sign session JWTs (HS256). When unset, a documented dev-only fallback is used. |
 | `SUPABASE_URL`   | No\*\*   | Supabase project URL. Enables durable Postgres persistence when paired with the service_role key. |
 | `SUPABASE_SERVICE_ROLE_KEY` | No\*\* | **Secret** service_role key (Supabase dashboard → Project Settings → API). Server-side only; bypasses RLS. |
@@ -174,10 +178,15 @@ hold no long-lived local state, so the app is serverless-friendly.
    Next.js — detected automatically).
 2. In **Project → Settings → Environment Variables**, set the variables you need for each
    environment (Production / Preview / Development):
-   - `AUTH_SECRET` — **required in production**. A long random string (e.g. `openssl rand -hex 32`).
-   - `OPENAI_API_KEY` — optional. Omit it to run on the deterministic mock provider.
-   - `LLM_PROVIDER` — optional. Set to `openai` (with a key) or leave as `mock`.
-   - `OPENAI_MODEL` — optional. Defaults to `gpt-4o-mini` when using OpenAI.
+   - `AUTH_SECRET`: **required in production**. A long random string (e.g. `openssl rand -hex 32`).
+   - `XAI_API_KEY`: optional. Set it to enable Grok. It is a **secret**: store it only as an
+     encrypted environment variable and never commit it. With no AI key present the app runs on
+     the deterministic mock provider.
+   - `LLM_PROVIDER`: optional. Set to `xai` to force Grok (auto-selected when `XAI_API_KEY` is
+     present), `openai` (with an OpenAI key), or leave as `mock`.
+   - `XAI_MODEL`: optional. Defaults to `grok-3-mini` when using xAI (e.g. `grok-3`, `grok-4`).
+   - `OPENAI_API_KEY`: optional. Omit it to run on the deterministic mock provider.
+   - `OPENAI_MODEL`: optional. Defaults to `gpt-4o-mini` when using OpenAI.
    - `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` — set **both** for durable persistence
      (Production / Preview). `SUPABASE_SERVICE_ROLE_KEY` is a **secret** (Supabase dashboard →
      Project Settings → API → service_role key) that bypasses row-level security, so store it
