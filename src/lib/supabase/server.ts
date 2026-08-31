@@ -10,8 +10,10 @@
  * - `SUPABASE_URL`
  * - `SUPABASE_SERVICE_ROLE_KEY`
  *
- * The client is created lazily and memoized on `globalThis` in non-production,
- * mirroring the in-memory store singleton HMR pattern (see
+ * The client is created lazily and memoized on `globalThis` in ALL
+ * environments (including production), so one `SupabaseClient` is reused across
+ * calls. The `globalThis` cache also lets the singleton survive HMR in dev,
+ * mirroring the in-memory store singleton pattern (see
  * {@link import("@/lib/store/users").getUserStore}).
  */
 
@@ -38,7 +40,8 @@ export function isSupabaseConfigured(): boolean {
   return getSupabaseUrl() !== undefined && getServiceRoleKey() !== undefined;
 }
 
-// Module singleton. In dev this survives HMR via a global cache.
+// Module singleton, cached on `globalThis` so it is reused across calls in all
+// environments and also survives HMR in dev.
 const globalForSupabase = globalThis as unknown as {
   __iqStudySupabaseAdmin?: SupabaseClient;
 };
@@ -70,9 +73,7 @@ export function getSupabaseAdmin(): SupabaseClient {
     },
   });
 
-  if (process.env.NODE_ENV !== "production") {
-    globalForSupabase.__iqStudySupabaseAdmin = client;
-  }
+  globalForSupabase.__iqStudySupabaseAdmin = client;
 
   return client;
 }
