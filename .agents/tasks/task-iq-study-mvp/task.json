@@ -1,0 +1,7 @@
+{
+  "task_id": "task-iq-study-mvp",
+  "task_description": "Build 'IQ Study': a Vercel-deployable Next.js/TypeScript web app where a user uploads a book, the app analyzes it and generates a ranked set of ultra-high-probability exam questions tied to the user's curriculum, profiles the user's optimal learning method via an onboarding questionnaire on login, and drives an adaptive spaced-repetition / active-recall study loop (with a concept 'web' map) to reinforce conceptual mastery. AI is behind an LLMProvider abstraction with a deterministic mock fallback so the app builds and runs fully without an API key.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004", "FEAT-005"],
+  "blocked_reason": null
+}

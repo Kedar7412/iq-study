@@ -1,0 +1,32 @@
+{
+  "id": "FEAT-005",
+  "type": "feat",
+  "description": "Build the adaptive study loop that turns generated questions into a personalized spaced-repetition / active-recall review engine ('help your brain remember' / 'web forming'). Uses an SM-2 style scheduler, adapts presentation and reinforcement to the user's LearningProfile, and surfaces a concept map linking related concepts. Then finalize project docs (README, Vercel deploy notes). Depends on FEAT-003 (questions) and FEAT-004 (profile).",
+  "status": "pending",
+  "steps": [
+    "Create src/lib/study/scheduler.ts implementing an SM-2 style spaced-repetition algorithm: given a review card { easeFactor, interval, repetitions } and a recall grade (0-5), return the updated card and nextDueDate. Keep it pure and unit-testable.",
+    "Create src/lib/study/session.ts: build a study session for a user+book by selecting due cards (one card per generated question/concept), ordering and adapting them to the LearningProfile (e.g. surface conceptual/application prompts earlier for high 'kinesthetic/application' learners; adjust review interval multiplier from profile.preferredReviewInterval). Track mastery per concept.",
+    "Persist review state per user+book in the store (cards with SM-2 fields, last grade, due date, mastery level).",
+    "Create study API routes: GET /api/study/[bookId]/next (returns next due card + adaptive prompt), POST /api/study/[bookId]/grade (body { cardId, grade } updates SM-2 state and returns next card + updated mastery). Validate with zod and require an authenticated session.",
+    "Create src/lib/study/conceptMap.ts: derive a 'web' of related concepts from the BookAnalysis (link concepts sharing source chunks or curriculum topics) to visualize the 'web forming in your brain'. Return nodes+edges with per-concept mastery.",
+    "Build the study UI at src/app/study/[bookId]/page.tsx: an active-recall flashcard-style loop (show question, reveal answer, self-grade 0-5), a progress/mastery indicator, and a simple concept-map/web visualization of concepts colored by mastery. Reflect the user's dominant learning style in copy/presentation.",
+    "Add unit tests under src/lib/study/__tests__: SM-2 updates interval/easeFactor correctly for high vs low grades and increases interval over successful repetitions; session selection returns only due cards and respects profile adaptation; conceptMap produces edges between concepts that share sources.",
+    "Write README.md: project overview, the full user flow (register/login -> onboarding profile -> upload book -> analyze + curriculum -> high-probability questions -> adaptive spaced-repetition study), architecture summary, required env vars (OPENAI_API_KEY optional with mock fallback, AUTH_SECRET, LLM_PROVIDER), local dev commands (with the `source ~/.nvm/nvm.sh && nvm use 22` note), test/build commands, Vercel deploy steps (set env vars in Vercel, note that local file/SQLite persistence is dev-only and production needs a hosted DB), and a clearly labeled 'MVP scope + roadmap / assumptions' section for future work (real DB, streaming AI, richer parsers, collaborative decks)."
+  ],
+  "acceptance_criteria": [
+    "GET /api/study/[bookId]/next returns a due card and POST .../grade updates its SM-2 state and returns the next card.",
+    "scheduler.ts: a high grade increases the interval and repetitions; a failing grade resets repetitions/interval (verified by unit tests).",
+    "Study session selection respects due dates and adapts ordering/interval to the LearningProfile (unit tested).",
+    "conceptMap returns edges linking concepts that share source chunks (unit tested).",
+    "README documents env vars, local run, tests, and Vercel deploy, plus an MVP scope + assumptions section.",
+    "All unit tests pass, `npm run build` succeeds keyless, and the end-to-end flow is navigable in `npm run dev`."
+  ],
+  "verification": [
+    "source ~/.nvm/nvm.sh && nvm use 22 && npm test",
+    "source ~/.nvm/nvm.sh && nvm use 22 && npm run typecheck",
+    "source ~/.nvm/nvm.sh && nvm use 22 && npm run lint",
+    "source ~/.nvm/nvm.sh && nvm use 22 && npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

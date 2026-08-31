@@ -1,0 +1,28 @@
+{
+  "id": "FEAT-004",
+  "type": "feat",
+  "description": "Add lightweight authentication and an onboarding questionnaire that profiles the user's optimal learning method. On first login the user answers a set of questions; the app computes a learning-style profile (e.g. VARK-style: visual/auditory/reading-writing/kinesthetic, plus pacing/confidence signals) that later personalizes the study loop. Depends on FEAT-001 (can proceed in parallel with FEAT-002/003 but ordered after them for a stable store layer).",
+  "status": "pending",
+  "steps": [
+    "Implement a minimal auth suitable for Vercel + keyless dev: use a signed cookie session (e.g. iron-session or a small JWT signed with AUTH_SECRET) with an email + password stored in the local store (hashed with bcrypt/argon2), OR a simple passwordless 'enter your name/email to create a session' flow if that is simpler and clearly documented. Provide /api/auth/register, /api/auth/login, /api/auth/logout route handlers and a session helper (src/lib/auth). Do not require any external auth provider.",
+    "Create src/lib/study/learningProfile.ts: define the questionnaire (a fixed set of ~8-12 questions each mapping to learning-style dimensions) and a scoreProfile(answers) function returning a normalized LearningProfile { visual, auditory, readingWriting, kinesthetic, pace, preferredReviewInterval, dominantStyle }. Keep scoring pure and unit-testable.",
+    "Create POST /api/onboarding route: accepts questionnaire answers for the logged-in user, computes the profile via scoreProfile, and persists it to the user's record in the store. GET returns the current profile (or null).",
+    "Build the login/register UI (src/app/login/page.tsx) and an onboarding questionnaire UI (src/app/onboarding/page.tsx). After login, if the user has no profile, redirect to onboarding.",
+    "Gate the app: unauthenticated users hitting protected pages (upload/books/study) are redirected to /login. Add a session-aware layout/nav showing the user and a logout action.",
+    "Add unit tests under src/lib/study/__tests__ and src/lib/auth/__tests__: scoreProfile produces a normalized profile and the expected dominantStyle for representative answer sets; password hashing/verification round-trips; session token sign/verify round-trips."
+  ],
+  "acceptance_criteria": [
+    "A user can register, log in, and receive a session cookie; logout clears it.",
+    "Submitting onboarding answers persists a LearningProfile retrievable via GET /api/onboarding.",
+    "scoreProfile returns normalized dimension scores and a correct dominantStyle for known inputs (unit tested).",
+    "Unauthenticated access to protected pages redirects to /login.",
+    "All new unit tests pass and `npm run build` succeeds with no external services or AI key."
+  ],
+  "verification": [
+    "source ~/.nvm/nvm.sh && nvm use 22 && npm test",
+    "source ~/.nvm/nvm.sh && nvm use 22 && npm run typecheck",
+    "source ~/.nvm/nvm.sh && nvm use 22 && npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

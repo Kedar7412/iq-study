@@ -1,0 +1,29 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Analyze an ingested book and generate a set of 'ultra high probability' exam questions tied to a user-provided curriculum. Produces a structured book analysis (summary, key concepts, topic outline) and a ranked question set where each question carries a probability/importance score and links back to source concepts. Uses the LLMProvider from FEAT-002 (mock works keyless). Depends on FEAT-002.",
+  "status": "pending",
+  "steps": [
+    "Create src/lib/analyze/analyzeBook.ts: given a bookId (chunks from the store) and optional curriculum text/keywords, call the LLMProvider to produce a BookAnalysis: { summary, keyConcepts: [{ concept, importance, sourceChunkIndexes }], topicOutline }. Map/reduce across chunks so long books are handled without exceeding context; merge per-chunk results into a deduplicated concept list.",
+    "Create src/lib/analyze/generateQuestions.ts: given the BookAnalysis + curriculum, produce ranked exam questions: [{ id, question, answer, concept, questionType (recall|application|conceptual), probability (0-1 'exam likelihood' score), rationale }]. 'Probability' should be derived from concept importance + curriculum overlap; document the scoring heuristic. Support requesting N questions.",
+    "Define the curriculum input model: accept either a pasted curriculum/syllabus text or a list of topics; store it alongside the book. Add zod schemas.",
+    "Create POST /api/analyze route handler (src/app/api/analyze/route.ts): body { bookId, curriculum }, runs analyzeBook then generateQuestions, persists analysis + questions to the store, returns them. Validate with zod.",
+    "Create GET /api/books/[bookId] route to fetch stored analysis + questions for display.",
+    "Build a book results UI at src/app/books/[bookId]/page.tsx: show the analysis summary, key concepts, and the ranked question list sorted by probability descending, each with its score, type, and answer (collapsible). Include a curriculum input on the upload/analyze flow.",
+    "Add unit tests under src/lib/analyze/__tests__: analyzeBook returns non-empty concepts from sample chunks via MockProvider; generateQuestions returns the requested count with probability values in [0,1] sorted descending; curriculum overlap raises the probability of matching concepts."
+  ],
+  "acceptance_criteria": [
+    "POST /api/analyze with a valid bookId returns a BookAnalysis plus a non-empty ranked question array.",
+    "Each generated question has a probability in [0,1] and the returned list is sorted by probability descending.",
+    "Providing curriculum topics that overlap book concepts increases those questions' probability (verified by unit test).",
+    "The full analyze->questions flow works end-to-end with the MockProvider (no AI key).",
+    "All new unit tests pass and `npm run build` succeeds."
+  ],
+  "verification": [
+    "source ~/.nvm/nvm.sh && nvm use 22 && npm test",
+    "source ~/.nvm/nvm.sh && nvm use 22 && npm run typecheck",
+    "source ~/.nvm/nvm.sh && nvm use 22 && npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
