@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { MockProvider } from "@/lib/llm/mock";
-import { generateQuestions } from "../generateQuestions";
+import type { TextChunk } from "@/lib/ingest/chunk";
+import type { LLMProvider } from "@/lib/llm/types";
+import {
+  buildConceptContext,
+  CONCEPT_CONTEXT_CHAR_LIMIT,
+  generateQuestions,
+} from "../generateQuestions";
 import type { BookAnalysis } from "../types";
 
 const ANALYSIS: BookAnalysis = {
@@ -66,6 +72,38 @@ describe("generateQuestions", () => {
     expect(after.probability).toBeGreaterThan(before.probability);
   });
 
+  it("grounds the per-concept prompt in the concept's source chunk text", async () => {
+    const chunks: TextChunk[] = [
+      { index: 0, text: "Chunk zero discusses chlorophyll pigments." },
+      { index: 1, text: "Chunk one covers photosynthesis and respiration." },
+      { index: 2, text: "Chunk two explains mitochondria in detail." },
+    ];
+
+    // A spy provider that records the user messages it is asked to complete.
+    const seen: string[] = [];
+    const spy: LLMProvider = {
+      name: "spy",
+      async complete() {
+        return "";
+      },
+      async completeJSON<T>(
+        prompt: string,
+        parse: (raw: unknown) => T,
+      ): Promise<T> {
+        seen.push(prompt);
+        return parse({ summary: "grounded answer", keywords: [] });
+      },
+    };
+
+    await generateQuestions(ANALYSIS, spy, { count: 4, chunks });
+
+    // The concept "mitochondria" comes from chunk 2, so its prompt should
+    // contain that chunk's text rather than only the book summary.
+    const mitoPrompt = seen.find((p) => p.includes("Concept: mitochondria"));
+    expect(mitoPrompt).toBeDefined();
+    expect(mitoPrompt).toContain("Chunk two explains mitochondria");
+  });
+
   it("uses syllabus text (not just topic list) for curriculum overlap", async () => {
     const withoutCurriculum = await generateQuestions(
       ANALYSIS,
@@ -80,5 +118,44 @@ describe("generateQuestions", () => {
     const before = withoutCurriculum.find((q) => q.concept === "respiration")!;
     const after = withText.find((q) => q.concept === "respiration")!;
     expect(after.probability).toBeGreaterThan(before.probability);
+  });
+});
+
+describe("buildConceptContext", () => {
+  const CHUNKS: TextChunk[] = [
+    { index: 0, text: "Alpha chunk text." },
+    { index: 1, text: "Beta chunk text." },
+    { index: 2, text: "Gamma chunk text." },
+  ];
+
+  it("concatenates the concept's source chunks in index order", () => {
+    const out = buildConceptContext("topic", [2, 0], CHUNKS, "the summary");
+    expect(out).toContain("Concept: topic");
+    expect(out).toContain("Alpha chunk text.");
+    expect(out).toContain("Gamma chunk text.");
+    // Order should be by index: alpha (0) before gamma (2).
+    expect(out.indexOf("Alpha")).toBeLessThan(out.indexOf("Gamma"));
+    expect(out).not.toContain("the summary");
+  });
+
+  it("falls back to the summary when no chunks are provided", () => {
+    const out = buildConceptContext("topic", [0], undefined, "the summary");
+    expect(out).toContain("Concept: topic");
+    expect(out).toContain("the summary");
+  });
+
+  it("falls back to the summary when no source index resolves", () => {
+    const out = buildConceptContext("topic", [99], CHUNKS, "the summary");
+    expect(out).toContain("the summary");
+    expect(out).not.toContain("Alpha chunk text.");
+  });
+
+  it("caps the combined source text at the char limit", () => {
+    const big: TextChunk[] = [
+      { index: 0, text: "a".repeat(CONCEPT_CONTEXT_CHAR_LIMIT + 500) },
+    ];
+    const out = buildConceptContext("topic", [0], big, "summary");
+    const aCount = (out.match(/a/g) ?? []).length;
+    expect(aCount).toBeLessThanOrEqual(CONCEPT_CONTEXT_CHAR_LIMIT);
   });
 });

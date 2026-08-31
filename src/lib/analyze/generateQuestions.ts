@@ -26,6 +26,7 @@
 
 import { z } from "zod";
 import type { LLMProvider } from "@/lib/llm/types";
+import type { TextChunk } from "@/lib/ingest/chunk";
 import { curriculumTerms, curriculumOverlapScore } from "./analyzeBook";
 import { ANALYSIS_TEMPERATURE, conceptAnswerSystemPrompt } from "./prompts";
 import {
@@ -47,6 +48,60 @@ export interface GenerateQuestionsOptions {
   curriculum?: Curriculum;
   /** Number of questions to request. Default 10. */
   count?: number;
+  /**
+   * The book's source chunks, used to ground each concept's reference answer in
+   * its actual source text (via {@link KeyConcept.sourceChunkIndexes}) rather
+   * than only the book-level summary. Optional; when omitted, the per-concept
+   * prompt falls back to `analysis.summary`.
+   */
+  chunks?: TextChunk[];
+}
+
+/**
+ * Max characters of source text fed into a single concept's reference-answer
+ * prompt. Keeps the payload bounded for concepts that span many chunks while
+ * still giving the model the concept's actual context to work from.
+ */
+export const CONCEPT_CONTEXT_CHAR_LIMIT = 4000;
+
+/**
+ * Build the grounding context for one concept's reference-answer call.
+ *
+ * Prefers the concept's own source chunk text (looked up by index from
+ * `chunks`), concatenated in chunk order and capped at
+ * {@link CONCEPT_CONTEXT_CHAR_LIMIT} characters. Falls back to the book-level
+ * `summary` when no source text is available (no chunks passed, or none of the
+ * concept's source indexes resolve). This keeps the "use only the provided
+ * context" instruction truthful: the model receives the text the concept was
+ * actually drawn from.
+ */
+export function buildConceptContext(
+  concept: string,
+  sourceChunkIndexes: number[],
+  chunks: TextChunk[] | undefined,
+  summary: string,
+): string {
+  const byIndex = new Map<number, string>();
+  for (const chunk of chunks ?? []) {
+    byIndex.set(chunk.index, chunk.text);
+  }
+
+  const parts: string[] = [];
+  let used = 0;
+  for (const idx of [...sourceChunkIndexes].sort((a, b) => a - b)) {
+    const text = byIndex.get(idx);
+    if (!text) continue;
+    const remaining = CONCEPT_CONTEXT_CHAR_LIMIT - used;
+    if (remaining <= 0) break;
+    const slice = text.slice(0, remaining);
+    parts.push(slice);
+    used += slice.length;
+  }
+
+  const sourceText = parts.join("\n\n").trim();
+  const context = sourceText || summary.trim();
+
+  return [`Concept: ${concept}`, "", "Context:", context].join("\n");
 }
 
 /** Shape the LLM is asked to return for a single concept's question. */
@@ -89,8 +144,17 @@ export async function generateQuestions(
       // Use the provider to produce a concise reference answer for the concept.
       // We reuse completeJSON (available on every provider) and take its
       // summary as the answer body; this stays deterministic under the mock.
+      // The user message grounds the concept in its actual source chunk text
+      // (falling back to the book summary), so the "use only the provided
+      // context" system instruction matches the payload the model receives.
+      const userMessage = buildConceptContext(
+        kc.concept,
+        kc.sourceChunkIndexes,
+        options.chunks,
+        analysis.summary,
+      );
       const draft = await provider.completeJSON(
-        `${kc.concept}. ${analysis.summary}`,
+        userMessage,
         (raw) => questionDraftSchema.parse(raw),
         { system: conceptAnswerSystemPrompt(), temperature: ANALYSIS_TEMPERATURE },
       );

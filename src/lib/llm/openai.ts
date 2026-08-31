@@ -7,6 +7,7 @@
  */
 
 import OpenAI from "openai";
+import { createJSONWithFallback } from "./completeJSON";
 import { parseJSONResponse } from "./json";
 import type { CompleteOptions, LLMProvider } from "./types";
 
@@ -49,21 +50,27 @@ export class OpenAIProvider implements LLMProvider {
     parse: (raw: unknown) => T,
     opts: CompleteOptions = {},
   ): Promise<T> {
-    const response = await this.client.chat.completions.create({
-      model: this.model,
-      temperature: opts.temperature,
-      max_tokens: opts.maxTokens,
-      response_format: { type: "json_object" },
-      messages: [
-        {
-          role: "system" as const,
-          content:
-            opts.system ??
-            "You are a helpful assistant that responds with valid JSON only.",
-        },
-        { role: "user" as const, content: prompt },
-      ],
-    });
+    // Request a JSON object, but fall back to a plain call (relying on the
+    // JSON-only system instruction + parseJSONResponse) if the model rejects
+    // the response_format parameter.
+    const response = await createJSONWithFallback(
+      (params) => this.client.chat.completions.create(params),
+      {
+        model: this.model,
+        temperature: opts.temperature,
+        max_tokens: opts.maxTokens,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system" as const,
+            content:
+              opts.system ??
+              "You are a helpful assistant that responds with valid JSON only.",
+          },
+          { role: "user" as const, content: prompt },
+        ],
+      },
+    );
     const content = response.choices[0]?.message?.content ?? "{}";
     return parse(parseJSONResponse(content));
   }

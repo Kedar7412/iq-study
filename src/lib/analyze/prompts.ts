@@ -45,15 +45,16 @@ export function chunkAnalysisSystemPrompt(): string {
  * System prompt for the per-concept reference-answer call in
  * {@link generateQuestions}.
  *
- * The user message supplies the concept plus the book-level summary as context.
- * The model must produce an exam-quality explanation of that concept as it is
- * used IN THIS book, grounded in the supplied context, returned as a JSON
- * object matching `questionDraftSchema` ({ summary, keywords }).
+ * The user message supplies the concept plus the source text it was drawn from
+ * (its own chunks where available, otherwise the book-level summary) as
+ * context. The model must produce an exam-quality explanation of that concept
+ * as it is used IN THIS book, grounded in the supplied context, returned as a
+ * JSON object matching `questionDraftSchema` ({ summary, keywords }).
  */
 export function conceptAnswerSystemPrompt(): string {
   return [
     "You are writing an exam-quality reference answer for a single concept, grounded in the study material provided by the user.",
-    "The user message gives the concept followed by a summary of the book it comes from. Explain the concept as it is used IN THIS book, using only the provided context. Do not invent facts or bring in outside knowledge that the context does not support.",
+    'The user message gives the concept (after "Concept:") followed by the source text it comes from (after "Context:"). Explain the concept as it is used IN THIS book, using only the provided context. Do not invent facts or bring in outside knowledge that the context does not support.',
     "Return a single JSON object only, with no prose, no explanation, and no markdown code fences, using exactly these two keys:",
     '- "summary": a string of 2-4 sentences giving an accurate, specific, self-contained explanation of the concept. No filler, no restating the question.',
     '- "keywords": an array of short noun-phrase strings for the most important related terms, deduplicated (an empty array is acceptable).',

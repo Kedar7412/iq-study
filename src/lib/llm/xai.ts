@@ -9,6 +9,7 @@
  */
 
 import OpenAI from "openai";
+import { createJSONWithFallback } from "./completeJSON";
 import { parseJSONResponse } from "./json";
 import type { CompleteOptions, LLMProvider } from "./types";
 
@@ -16,8 +17,11 @@ import type { CompleteOptions, LLMProvider } from "./types";
 const XAI_BASE_URL = "https://api.x.ai/v1";
 
 /**
- * Default model; a cost-effective current xAI chat model. Overridable via the
- * `XAI_MODEL` env var.
+ * Default model; a cost-effective current xAI chat model. This is a moving
+ * target across xAI's lineup, so production deployments are expected to pin an
+ * explicit model via the `XAI_MODEL` env var rather than rely on this default.
+ * It exists mainly so a keyed user without `XAI_MODEL` still gets a working
+ * model; if xAI retires it, set `XAI_MODEL` to a current model name.
  */
 const DEFAULT_MODEL = "grok-3-mini";
 
@@ -69,19 +73,25 @@ export class XAIProvider implements LLMProvider {
     const baseSystem =
       opts.system ??
       "You are a helpful assistant that responds with valid JSON only.";
-    const response = await this.client.chat.completions.create({
-      model: this.model,
-      temperature: opts.temperature,
-      max_tokens: opts.maxTokens,
-      response_format: { type: "json_object" },
-      messages: [
-        {
-          role: "system" as const,
-          content: `${baseSystem}\n\n${JSON_ONLY_INSTRUCTION}`,
-        },
-        { role: "user" as const, content: prompt },
-      ],
-    });
+    // Request a JSON object, but fall back to a plain call (relying on the
+    // JSON-only system instruction + parseJSONResponse) if the Grok model
+    // rejects the response_format parameter with a 400.
+    const response = await createJSONWithFallback(
+      (params) => this.client.chat.completions.create(params),
+      {
+        model: this.model,
+        temperature: opts.temperature,
+        max_tokens: opts.maxTokens,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system" as const,
+            content: `${baseSystem}\n\n${JSON_ONLY_INSTRUCTION}`,
+          },
+          { role: "user" as const, content: prompt },
+        ],
+      },
+    );
     const content = response.choices[0]?.message?.content ?? "{}";
     return parse(parseJSONResponse(content));
   }

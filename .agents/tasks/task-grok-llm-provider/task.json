@@ -1,7 +1,14 @@
 {
   "task_id": "task-grok-llm-provider",
   "task_description": "Make IQ Study use Grok (xAI) as its real LLM provider instead of the deterministic mock, so analysis, exam questions, and study prompts produce coherent, on-topic, book-grounded output. Add an OpenAI-compatible XAIProvider (baseURL https://api.x.ai/v1) reading XAI_API_KEY, wire it into getLLMProvider() (support LLM_PROVIDER=xai and auto-select when XAI_API_KEY present), tighten the analyze/question prompts for grounded output while preserving all zod contracts, add keyless unit tests, and document XAI_API_KEY / LLM_PROVIDER=xai / XAI_MODEL in .env.example and README. Everything stays keyless-green with the mock fallback; no API key is hardcoded.",
-  "status": "in_progress",
+  "status": "completed",
   "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004"],
-  "blocked_reason": null
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "summary": "All four verification commands pass KEYLESS (no env set): npm run lint (clean), npm run typecheck (clean), npm test (127 passed across 19 files, up from 113 after addressing the v1 review), npm run build (all routes compiled). No Dockerfile in repo, so docker_build skipped. Review round 1 (2026-08-31-171539-review.md, NEEDS_CHANGES) addressed: (1) concept-answer grounding now threads each concept's source chunk text into the prompt via buildConceptContext (falls back to summary), with analyze route passing book.chunks; (2) both live providers now retry completeJSON without response_format when a model rejects json_object, via the shared createJSONWithFallback/isResponseFormatUnsupportedError helper, unit-tested keyless in completeJSON.test.ts; (3) grok-3-mini default documented as expected-to-be-overridden via XAI_MODEL. Test quality: completeJSON.test.ts exercises the format-fallback happy path, retry, and unrelated-error rethrow with a stub create fn; generateQuestions.test.ts asserts source-chunk grounding and buildConceptContext behavior. All would fail if the implementation were reverted."
+  }
 }
