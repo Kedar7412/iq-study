@@ -18,6 +18,8 @@
  */
 
 import type { RecallGrade } from "@/lib/study/scheduler";
+import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase/server";
+import { reviewDeckFromRow, reviewDeckToRow } from "@/lib/supabase/mappers";
 
 /** A single review card: one generated question with its SM-2 state. */
 export interface ReviewCard {
@@ -78,13 +80,40 @@ class InMemoryReviewStore implements ReviewStore {
   }
 }
 
+/** Durable Supabase-backed implementation (service_role, bypasses RLS). */
+class SupabaseReviewStore implements ReviewStore {
+  async getDeck(
+    userId: string,
+    bookId: string,
+  ): Promise<ReviewDeck | undefined> {
+    const { data, error } = await getSupabaseAdmin()
+      .from("review_decks")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("book_id", bookId)
+      .maybeSingle();
+    if (error) throw new Error(`Failed to load review deck: ${error.message}`);
+    return data ? reviewDeckFromRow(data) : undefined;
+  }
+
+  async saveDeck(deck: ReviewDeck): Promise<void> {
+    const { error } = await getSupabaseAdmin()
+      .from("review_decks")
+      .upsert(reviewDeckToRow(deck), { onConflict: "user_id,book_id" });
+    if (error) throw new Error(`Failed to save review deck: ${error.message}`);
+  }
+}
+
 // Module singleton. In dev this survives HMR via a global cache.
 const globalForReviewStore = globalThis as unknown as {
   __iqStudyReviewStore?: ReviewStore;
 };
 
 const store: ReviewStore =
-  globalForReviewStore.__iqStudyReviewStore ?? new InMemoryReviewStore();
+  globalForReviewStore.__iqStudyReviewStore ??
+  (isSupabaseConfigured()
+    ? new SupabaseReviewStore()
+    : new InMemoryReviewStore());
 
 if (process.env.NODE_ENV !== "production") {
   globalForReviewStore.__iqStudyReviewStore = store;
