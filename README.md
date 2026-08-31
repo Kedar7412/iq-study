@@ -56,10 +56,37 @@ See [`.env.example`](./.env.example) for the full list. Copy it to `.env.local` 
 | ---------------- | -------- | -------------------------------------------------------------------------------------------- |
 | `OPENAI_API_KEY` | No       | OpenAI API key. When empty, the app falls back to a deterministic mock AI provider.          |
 | `LLM_PROVIDER`   | No       | AI provider: `openai` or `mock`. Defaults to `mock` when no `OPENAI_API_KEY` is present.     |
-| `AUTH_SECRET`    | No       | Secret used for signing user sessions. Use a long random string in real deployments.         |
+| `AUTH_SECRET`    | No\*     | Secret used to sign session JWTs (HS256). When unset, a documented dev-only fallback is used. |
 
-The app is designed to build and run with **no AI provider key present** (mock fallback), so
-CI, local dev, and preview deployments all work keyless.
+\* `AUTH_SECRET` is optional in dev/CI so everything works keyless, but **production deployments
+MUST set a long random `AUTH_SECRET`**. Without it, sessions are signed with a well-known
+fallback key and are trivially forgeable.
+
+The app is designed to build and run with **no AI provider key present** (mock fallback) and
+**no `AUTH_SECRET`** (dev fallback), so CI, local dev, and preview deployments all work keyless.
+
+## Authentication & onboarding
+
+IQ Study ships a minimal, provider-free auth suitable for Vercel:
+
+- **Accounts**: email + password. Passwords are hashed with [`bcryptjs`](https://github.com/dcodeIO/bcrypt.js)
+  (pure JS, no native build). API: `POST /api/auth/register`, `POST /api/auth/login`,
+  `POST /api/auth/logout`, `GET /api/auth/me`.
+- **Sessions**: a signed HS256 JWT ([`jose`](https://github.com/panva/jose)) stored in an
+  httpOnly cookie (`iq_session`), signed with `AUTH_SECRET`. No server-side session store, so
+  it is serverless-friendly.
+- **Gating**: a Next.js proxy (`src/proxy.ts`) redirects unauthenticated visitors to `/login`
+  for protected routes (`/upload`, `/books`, `/onboarding`, `/study`).
+- **Onboarding**: `/onboarding` presents a fixed 10-question learning-style questionnaire.
+  `scoreProfile` (pure, unit-tested) turns answers into a normalized `LearningProfile`
+  (visual / auditory / reading-writing / kinesthetic scores, pace, preferred review interval,
+  and dominant style), persisted per user via `POST /api/onboarding` and read via
+  `GET /api/onboarding`. After login, users without a profile are routed to onboarding.
+
+**Persistence caveat**: the user store (like the book store) is in-memory for MVP. On Vercel's
+serverless runtime each invocation may run in a fresh isolate, so accounts written by one
+request are not guaranteed to be visible to another. Swap in a durable store (SQLite / Postgres
+/ Redis) before relying on cross-request persistence in production.
 
 ## Deployment
 
