@@ -1,0 +1,29 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Improve the analyze / question-generation prompts so a real LLM (Grok) produces coherent, on-topic output grounded strictly in the uploaded book and tied to the learner's curriculum, instead of the current 'asks anything about anything' behavior. The prompts were tuned for the mock's heuristics; tighten them while preserving the exact zod JSON contracts downstream code depends on. Add keyless unit tests for provider selection and the new helpers. Depends on FEAT-002.",
+  "status": "pending",
+  "steps": [
+    "In `src/lib/analyze/analyzeBook.ts`, keep the `chunkAnalysisSchema` shape `{ summary: string, keywords: string[] }` unchanged, but replace the terse system prompt with a grounded instruction. The system prompt should tell the model: you are analyzing one excerpt of a larger study text; produce a JSON object with exactly `summary` (2-4 sentences summarizing ONLY what this excerpt actually says, no outside knowledge, no invented facts) and `keywords` (the specific key concepts/terms that literally appear in this excerpt, as short noun phrases, deduplicated, no generic filler words). Add an explicit 'respond with a single JSON object only' instruction so it works with prompt-enforced JSON too. Optionally pass a temperature (e.g. 0.2) via CompleteOptions to reduce drift. Do not change the map/reduce or scoring logic.",
+    "In `src/lib/analyze/generateQuestions.ts`, keep `questionDraftSchema` `{ summary, keywords }` unchanged but improve the per-concept call so `draft.summary` becomes a genuinely useful, self-contained reference answer for the concept as it is used IN THIS book. Strengthen the system prompt to: answer as an exam-quality explanation of the given concept grounded in the provided book summary/context, 2-4 sentences, accurate and specific, no filler, JSON object only. Consider passing the concept plus the book summary (already done) and a low temperature. Keep the local probability/questionType/rationale heuristics exactly as they are (the LLM must not set probability).",
+    "Optionally add a shared prompt-building helper module `src/lib/analyze/prompts.ts` exporting pure functions (e.g. `chunkAnalysisSystemPrompt()` and `conceptAnswerSystemPrompt()`) so the prompt strings are unit-testable and reused; wire analyzeBook.ts and generateQuestions.ts to use them. If a separate module adds churn without value, inline the improved strings instead - implementer's judgment, but prefer testable pure helpers.",
+    "Update `src/lib/llm/__tests__/index.test.ts` (or add a new test file) to cover the new `getLLMProvider()` branches by manipulating env: XAIProvider selected when `LLM_PROVIDER=xai` + `XAI_API_KEY`; XAIProvider auto-selected when `XAI_API_KEY` present and no explicit provider; OpenAI path still works; MockProvider when nothing set or key missing; never throws keyless. Follow the existing test's pattern of snapshotting and restoring `process.env`, and its try/catch note that the OpenAI SDK may throw under jsdom (apply the same tolerance for XAIProvider if it constructs the SDK).",
+    "Add `src/lib/llm/__tests__/json.test.ts` testing `parseJSONResponse`: clean JSON object, JSON wrapped in ```json fences, JSON with leading/trailing prose, and an unparseable string (expects a thrown Error).",
+    "If prompt helpers were extracted, add `src/lib/analyze/__tests__/prompts.test.ts` asserting the prompt strings contain the key grounding instructions (e.g. mention 'JSON', 'only this excerpt'/'grounded', 'do not invent'). These are keyless, network-free tests.",
+    "Ensure existing analyze/mock tests still pass unchanged (the mock output shape is untouched; the schemas are untouched)."
+  ],
+  "acceptance_criteria": [
+    "The chunk-analysis and concept-answer prompts explicitly constrain the model to the provided text, forbid invented/outside content, and require a single JSON object matching the unchanged zod schemas.",
+    "No zod schema in `src/lib/analyze/types.ts` or the inline chunk/question draft schemas changed shape; downstream consumers compile and their tests pass.",
+    "New keyless unit tests cover getLLMProvider() xai/openai/mock branches and parseJSONResponse; all tests pass with no env set.",
+    "Total test count increased over the FEAT-001 baseline and `npm test` is green keyless."
+  ],
+  "verification": [
+    "source ~/.nvm/nvm.sh && nvm use 22 && npm run lint",
+    "source ~/.nvm/nvm.sh && nvm use 22 && npm run typecheck",
+    "source ~/.nvm/nvm.sh && nvm use 22 && npm test",
+    "source ~/.nvm/nvm.sh && nvm use 22 && npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

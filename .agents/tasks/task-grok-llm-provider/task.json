@@ -1,0 +1,7 @@
+{
+  "task_id": "task-grok-llm-provider",
+  "task_description": "Make IQ Study use Grok (xAI) as its real LLM provider instead of the deterministic mock, so analysis, exam questions, and study prompts produce coherent, on-topic, book-grounded output. Add an OpenAI-compatible XAIProvider (baseURL https://api.x.ai/v1) reading XAI_API_KEY, wire it into getLLMProvider() (support LLM_PROVIDER=xai and auto-select when XAI_API_KEY present), tighten the analyze/question prompts for grounded output while preserving all zod contracts, add keyless unit tests, and document XAI_API_KEY / LLM_PROVIDER=xai / XAI_MODEL in .env.example and README. Everything stays keyless-green with the mock fallback; no API key is hardcoded.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004"],
+  "blocked_reason": null
+}

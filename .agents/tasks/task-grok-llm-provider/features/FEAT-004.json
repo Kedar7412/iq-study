@@ -1,0 +1,24 @@
+{
+  "id": "FEAT-004",
+  "type": "docs",
+  "description": "Document the new Grok/xAI provider in `.env.example` and README so the user knows exactly which environment variables to set (in Vercel and locally) to enable real Grok output, and that the app still falls back to the deterministic mock with no key. Depends on FEAT-002 and FEAT-003.",
+  "status": "pending",
+  "steps": [
+    "Update `.env.example`: add an `XAI_API_KEY=` entry (Grok / xAI API key; secret; leave blank; set only in deployment env; never commit) with a comment that when set, the app uses Grok. Extend the `LLM_PROVIDER` comment to list `xai` as an option (e.g. `\"xai\" | \"openai\" | \"mock\"`) and note that setting `XAI_API_KEY` alone (no explicit LLM_PROVIDER) auto-selects xai. Add `XAI_MODEL=` (optional; defaults to grok-3-mini; overridable, e.g. grok-3, grok-4). Keep existing OPENAI_* and SUPABASE_* entries. Do not put any real key value.",
+    "Update README `## Environment variables` table: add rows for `XAI_API_KEY` (No - Grok/xAI API key; when empty, falls back to mock), `XAI_MODEL` (No - xAI chat model, default grok-3-mini), and update the `LLM_PROVIDER` row to include `xai`.",
+    "Update the README architecture bullet for `src/lib/llm` to mention the xAI/Grok provider alongside OpenAI and mock.",
+    "Update README `## Deployment (Vercel)` env var list: add `XAI_API_KEY` (optional; set to enable Grok; secret, never commit), `LLM_PROVIDER=xai` (optional; auto-selected when XAI_API_KEY present), and `XAI_MODEL` (optional; default grok-3-mini). Clarify that with no AI key the app runs on the deterministic mock, and that keys are set in Vercel Project Settings for Production/Preview and must never be committed.",
+    "Ensure wording is consistent with the existing keyless-fallback narrative and does not use em dashes."
+  ],
+  "acceptance_criteria": [
+    "`.env.example` documents `XAI_API_KEY`, `XAI_MODEL`, and `LLM_PROVIDER=xai` with blank/secret values only, no real key.",
+    "README documents the same in the Environment variables table, the src/lib/llm architecture bullet, and the Vercel Deployment section, including the keyless mock fallback note.",
+    "`npm run lint`, `npm run typecheck`, `npm test`, `npm run build` remain green keyless (docs-only change should not affect them)."
+  ],
+  "verification": [
+    "source ~/.nvm/nvm.sh && nvm use 22 && npm run build",
+    "source ~/.nvm/nvm.sh && nvm use 22 && npm test"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

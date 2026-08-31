@@ -1,0 +1,28 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Add a Grok/xAI LLM provider and wire it into the provider factory, keeping the existing OpenAI path and the deterministic mock fallback intact. xAI's API is OpenAI-compatible, so reuse the official `openai` SDK with a different base URL. This is the core of making the app use Grok's API. Depends on FEAT-001.",
+  "status": "pending",
+  "steps": [
+    "Create `src/lib/llm/xai.ts` exporting `class XAIProvider implements LLMProvider` with `readonly name = 'xai'`. Model it closely on `src/lib/llm/openai.ts`.",
+    "Constructor signature `constructor(apiKey: string)`: throw only when called with an empty key (matching OpenAIProvider's guard), never validate the network. Build the client with `new OpenAI({ apiKey, baseURL: 'https://api.x.ai/v1' })` (import `OpenAI` from the existing `openai` dependency). Read the model from `process.env.XAI_MODEL` with a sensible default constant `DEFAULT_MODEL = 'grok-3-mini'` (a cost-effective current xAI chat model; document it as overridable via XAI_MODEL). Importing this module must not trigger any key check or network call.",
+    "Implement `complete(prompt, opts)` exactly like OpenAIProvider.complete: chat.completions.create with model, temperature, max_tokens, optional system message, user prompt; return `response.choices[0]?.message?.content ?? ''`.",
+    "Implement `completeJSON<T>(prompt, parse, opts)`: request JSON. Attempt `response_format: { type: 'json_object' }` first (xAI is OpenAI-compatible and supports this); ALSO strengthen the system prompt to explicitly require a single valid JSON object with no prose/markdown, so output is robust even if a given model ignores response_format. Then parse the content with a NEW exported defensive helper `parseJSONResponse(content: string): unknown` (see next step) instead of a bare JSON.parse.",
+    "Create a small exported pure helper `parseJSONResponse(content: string): unknown` (put it in a new `src/lib/llm/json.ts` so it can be unit-tested and reused): strip surrounding markdown code fences (```json ... ``` or ``` ... ```), trim, and if direct JSON.parse fails, extract the first balanced JSON object substring (from the first `{` to its matching closing `}`) and parse that. Throw a clear Error if no JSON object can be parsed. Refactor OpenAIProvider.completeJSON to also use `parseJSONResponse` for consistency and robustness (keeps its existing behavior for clean JSON, adds resilience).",
+    "Update `src/lib/llm/index.ts` `getLLMProvider()`: read `XAI_API_KEY`, `OPENAI_API_KEY`, and `LLM_PROVIDER` (lowercased). Selection order: (1) if `LLM_PROVIDER === 'xai'` and `XAI_API_KEY` is set, return `new XAIProvider(XAI_API_KEY)`; (2) if `LLM_PROVIDER === 'openai'` and `OPENAI_API_KEY` is set, return `new OpenAIProvider(OPENAI_API_KEY)`; (3) if no explicit `LLM_PROVIDER` (empty/unset) and `XAI_API_KEY` is present, auto-select `new XAIProvider(XAI_API_KEY)`; (4) otherwise `new MockProvider()`. Never throw when no key is present. Export `XAIProvider` from index alongside `OpenAIProvider` and `MockProvider`.",
+    "Keep the `LLMProvider` interface in `src/lib/llm/types.ts` unchanged."
+  ],
+  "acceptance_criteria": [
+    "`src/lib/llm/xai.ts` exists with an `XAIProvider` that uses baseURL `https://api.x.ai/v1`, reads the model from `XAI_MODEL` (default `grok-3-mini`), and never throws or hits the network at import time.",
+    "`parseJSONResponse` in `src/lib/llm/json.ts` handles clean JSON, code-fenced JSON, and JSON embedded in surrounding prose, and throws on unparseable input.",
+    "`getLLMProvider()` returns XAIProvider when `LLM_PROVIDER=xai` + `XAI_API_KEY`, or when `XAI_API_KEY` is present with no explicit provider; returns OpenAIProvider on the openai path; returns MockProvider otherwise; never throws keyless.",
+    "The existing OpenAI selection behavior and mock fallback are preserved; no downstream consumer changes are required."
+  ],
+  "verification": [
+    "source ~/.nvm/nvm.sh && nvm use 22 && npm run typecheck",
+    "source ~/.nvm/nvm.sh && nvm use 22 && npm run lint",
+    "source ~/.nvm/nvm.sh && nvm use 22 && npm test"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
