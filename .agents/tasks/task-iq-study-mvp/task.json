@@ -1,7 +1,14 @@
 {
   "task_id": "task-iq-study-mvp",
   "task_description": "Build 'IQ Study': a Vercel-deployable Next.js/TypeScript web app where a user uploads a book, the app analyzes it and generates a ranked set of ultra-high-probability exam questions tied to the user's curriculum, profiles the user's optimal learning method via an onboarding questionnaire on login, and drives an adaptive spaced-repetition / active-recall study loop (with a concept 'web' map) to reinforce conceptual mastery. AI is behind an LLMProvider abstraction with a deterministic mock fallback so the app builds and runs fully without an API key.",
-  "status": "in_progress",
+  "status": "completed",
   "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004", "FEAT-005"],
-  "blocked_reason": null
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "summary": "All 5 features complete. npm run lint, npm run typecheck pass clean; npm test = 62 tests across 13 files pass; npm run build succeeds with all 17 routes + proxy registered, all keyless via MockProvider + AUTH_SECRET dev fallback. Test quality verified: scheduler tests exercise real SM-2 interval growth/reset/ease-floor behavior, generateQuestions tests verify curriculum-overlap raises probability, session tests verify profile-adaptive ordering and due-only selection - each would fail if the covered logic were reverted. No Dockerfile in project so docker_build skipped."
+  }
 }
