@@ -13,6 +13,11 @@
 
 import type { ParsedBookMeta } from "@/lib/ingest/parse";
 import type { TextChunk } from "@/lib/ingest/chunk";
+import type {
+  BookAnalysis,
+  Curriculum,
+  ExamQuestion,
+} from "@/lib/analyze/types";
 
 /** A fully ingested book record. */
 export interface StoredBook {
@@ -26,6 +31,21 @@ export interface StoredBook {
   chunks: TextChunk[];
   /** Creation timestamp (epoch ms). */
   createdAt: number;
+  /** Curriculum the learner supplied for this book (set during analysis). */
+  curriculum?: Curriculum;
+  /** Structured analysis produced by the analyze step. */
+  analysis?: BookAnalysis;
+  /** Ranked exam questions produced from the analysis. */
+  questions?: ExamQuestion[];
+  /** Timestamp of the most recent analysis (epoch ms). */
+  analyzedAt?: number;
+}
+
+/** Fields written when persisting an analysis result for a book. */
+export interface AnalysisResult {
+  curriculum: Curriculum;
+  analysis: BookAnalysis;
+  questions: ExamQuestion[];
 }
 
 /** Storage abstraction for ingested books. */
@@ -33,6 +53,14 @@ export interface BookStore {
   save(book: StoredBook): Promise<void>;
   get(bookId: string): Promise<StoredBook | undefined>;
   list(): Promise<StoredBook[]>;
+  /**
+   * Attach analysis output to an existing book. Returns the updated record, or
+   * `undefined` if no book exists for `bookId`.
+   */
+  saveAnalysis(
+    bookId: string,
+    result: AnalysisResult,
+  ): Promise<StoredBook | undefined>;
 }
 
 /** In-memory implementation backed by a Map. Dev/MVP only. */
@@ -49,6 +77,23 @@ class InMemoryBookStore implements BookStore {
 
   async list(): Promise<StoredBook[]> {
     return [...this.books.values()].sort((a, b) => b.createdAt - a.createdAt);
+  }
+
+  async saveAnalysis(
+    bookId: string,
+    result: AnalysisResult,
+  ): Promise<StoredBook | undefined> {
+    const existing = this.books.get(bookId);
+    if (!existing) return undefined;
+    const updated: StoredBook = {
+      ...existing,
+      curriculum: result.curriculum,
+      analysis: result.analysis,
+      questions: result.questions,
+      analyzedAt: Date.now(),
+    };
+    this.books.set(bookId, updated);
+    return updated;
   }
 }
 

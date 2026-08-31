@@ -111,6 +111,12 @@ export default function UploadPage() {
             <dt className="font-medium">Chunks</dt>
             <dd>{result.chunkCount}</dd>
           </dl>
+          <a
+            href={`/books/${result.bookId}`}
+            className="mt-4 inline-block rounded-lg bg-black px-4 py-2 font-medium text-white dark:bg-white dark:text-black"
+          >
+            Add curriculum &amp; analyze →
+          </a>
         </div>
       )}
     </main>

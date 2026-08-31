@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "feat",
   "description": "Analyze an ingested book and generate a set of 'ultra high probability' exam questions tied to a user-provided curriculum. Produces a structured book analysis (summary, key concepts, topic outline) and a ranked question set where each question carries a probability/importance score and links back to source concepts. Uses the LLMProvider from FEAT-002 (mock works keyless). Depends on FEAT-002.",
-  "status": "pending",
+  "status": "completed",
   "steps": [
     "Create src/lib/analyze/analyzeBook.ts: given a bookId (chunks from the store) and optional curriculum text/keywords, call the LLMProvider to produce a BookAnalysis: { summary, keyConcepts: [{ concept, importance, sourceChunkIndexes }], topicOutline }. Map/reduce across chunks so long books are handled without exceeding context; merge per-chunk results into a deduplicated concept list.",
     "Create src/lib/analyze/generateQuestions.ts: given the BookAnalysis + curriculum, produce ranked exam questions: [{ id, question, answer, concept, questionType (recall|application|conceptual), probability (0-1 'exam likelihood' score), rationale }]. 'Probability' should be derived from concept importance + curriculum overlap; document the scoring heuristic. Support requesting N questions.",
@@ -25,5 +25,5 @@
     "source ~/.nvm/nvm.sh && nvm use 22 && npm run build"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Implemented src/lib/analyze/{types,analyzeBook,generateQuestions}.ts, POST /api/analyze, GET /api/books/[bookId], and the src/app/books/[bookId]/page.tsx results UI (curriculum input + collapsible answers). Added AnalysisResult + saveAnalysis to the BookStore interface and in-memory impl; StoredBook now carries optional curriculum/analysis/questions/analyzedAt. FEAT-003 introduces its OWN richer BookAnalysis (summary, keyConcepts[{concept, importance, sourceChunkIndexes}], topicOutline) in src/lib/analyze/types.ts rather than the primitive BookAnalysis in src/lib/llm/types.ts (which the MockProvider.completeJSON still returns). Scoring heuristics are documented in the source: analyzeBook importance = normalised cross-chunk frequency + 0.3 curriculum boost (capped at 1); generateQuestions probability = clamp01(0.6*importance + 0.4*curriculumOverlap). NOTE ON MOCK BEHAVIOUR: MockProvider.completeJSON derives keywords per chunk via top-N term frequency, so a term appearing in multiple chunks is not guaranteed to be in every chunk's keyword list; the provenance test was written to assert sourceChunkIndexes is a non-empty subset of the input chunk indexes rather than the exact set. Question types are assigned deterministically by rotating recall/application/conceptual (no model call needed). ESLint (Next core-web-vitals) enforces react-hooks/set-state-in-effect: the book page effect must not call a setState-containing function synchronously; solved by a pure fetchBook() helper whose results are applied inside the effect's async .then callback. All verification passed keyless: npm test (31 tests), npm run typecheck, npm run lint, npm run build."
 }
