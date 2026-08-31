@@ -14,6 +14,7 @@
 import { z } from "zod";
 import type { LLMProvider } from "@/lib/llm/types";
 import type { TextChunk } from "@/lib/ingest/chunk";
+import { ANALYSIS_TEMPERATURE, chunkAnalysisSystemPrompt } from "./prompts";
 import {
   bookAnalysisSchema,
   type BookAnalysis,
@@ -140,8 +141,8 @@ export async function analyzeBook(
   const perChunk = await Promise.all(
     chunks.map((chunk) =>
       provider.completeJSON(chunk.text, (raw) => chunkAnalysisSchema.parse(raw), {
-        system:
-          "Extract a concise summary and the key concepts from this study material.",
+        system: chunkAnalysisSystemPrompt(),
+        temperature: ANALYSIS_TEMPERATURE,
       }),
     ),
   );

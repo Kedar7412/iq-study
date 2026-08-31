@@ -27,6 +27,7 @@
 import { z } from "zod";
 import type { LLMProvider } from "@/lib/llm/types";
 import { curriculumTerms, curriculumOverlapScore } from "./analyzeBook";
+import { ANALYSIS_TEMPERATURE, conceptAnswerSystemPrompt } from "./prompts";
 import {
   examQuestionSchema,
   type BookAnalysis,
@@ -91,7 +92,7 @@ export async function generateQuestions(
       const draft = await provider.completeJSON(
         `${kc.concept}. ${analysis.summary}`,
         (raw) => questionDraftSchema.parse(raw),
-        { system: "Explain this concept concisely for an exam answer." },
+        { system: conceptAnswerSystemPrompt(), temperature: ANALYSIS_TEMPERATURE },
       );
 
       const overlap = curriculumOverlapScore(kc.concept, terms);
