@@ -1,0 +1,27 @@
+{
+  "project_type": "Greenfield Next.js 14+ (App Router) web application in TypeScript. AI-assisted study platform: upload a book, analyze it, generate high-probability exam questions tied to a curriculum, profile the learner's optimal learning method via an onboarding questionnaire, and drive an adaptive spaced-repetition / active-recall study loop.",
+  "language": "TypeScript",
+  "build_system": "npm (Node.js v22 via nvm). Node is NOT on PATH by default in the sandbox; must run `source ~/.nvm/nvm.sh && nvm use 22` before any node/npm command.",
+  "test_framework": "Vitest for unit tests (fast, TS-native, works well with Next.js). Tests colocated under src/**/__tests__ or *.test.ts.",
+  "build_command": "source ~/.nvm/nvm.sh && nvm use 22 && npm run build",
+  "test_command": "source ~/.nvm/nvm.sh && nvm use 22 && npm test",
+  "verification_instructions": "1) `npm run lint` passes. 2) `npm run typecheck` (tsc --noEmit) passes. 3) `npm test` passes (Vitest). 4) `npm run build` produces a successful Next.js production build with no type errors. The app MUST build and run with NO AI provider API key present (mock provider fallback).",
+  "snapshot_or_generated_files": "None. Next.js build output (.next/) is gitignored and not checked in.",
+  "setup_instructions": "source ~/.nvm/nvm.sh && nvm use 22 && npm install. Copy .env.example to .env.local. App runs with `npm run dev` (http://localhost:3000). No external services required for MVP: persistence is local (SQLite via better-sqlite3 or JSON store) or in-memory; AI uses a mock provider when no key is set.",
+  "environment_constraints": "network_mode OPEN_INTERNET (package installs and external APIs allowed). BUT no AI provider API keys (OpenAI/Anthropic/etc.) are guaranteed to be present in the sandbox or Vercel. The AI layer MUST be behind a clean abstraction (LLMProvider interface) and default to a deterministic MockProvider when OPENAI_API_KEY (or equivalent) is absent, so build/tests/dev all work keyless. Never hardcode or invent secrets. Deploy target is Vercel: use serverless-friendly patterns, do not rely on a long-lived local filesystem for production persistence (document this limitation; MVP may use local storage / SQLite for dev with a note).",
+  "contribution_requirements": "No CONTRIBUTING.md (empty repo). Deployment via Vercel: all work lands on a feature branch and is delivered via PR the user merges (orchestrator handles push/PR). Keep the app Vercel-deployable. Document required env vars in README and .env.example.",
+  "key_patterns": "App Router route handlers under src/app/api/* for server logic. Server-side AI/parsing kept in src/lib/* modules. Clean separation: src/lib/llm (provider abstraction + mock), src/lib/ingest (book parsing), src/lib/study (spaced repetition SM-2, learning-style profile), src/lib/store (persistence). React client components for upload UI, questionnaire, and study loop. Zod for input validation. Tailwind CSS for styling.",
+  "relevant_files": [
+    "iq-study/package.json",
+    "iq-study/next.config.mjs",
+    "iq-study/tsconfig.json",
+    "iq-study/.env.example",
+    "iq-study/README.md",
+    "iq-study/src/app",
+    "iq-study/src/lib/llm",
+    "iq-study/src/lib/ingest",
+    "iq-study/src/lib/study",
+    "iq-study/src/lib/store"
+  ],
+  "directory_structure": "src/app (Next.js App Router pages + api route handlers), src/components (React UI), src/lib (server/domain logic: llm, ingest, study, store), src/lib/**/__tests__ (Vitest unit tests). Public assets in public/. Config at repo root."
+}
