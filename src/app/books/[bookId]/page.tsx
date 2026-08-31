@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 
 interface KeyConcept {
   concept: string;
@@ -261,9 +262,17 @@ export default function BookPage({
 
           {data.questions.length > 0 && (
             <section>
-              <h2 className="text-xl font-semibold">
-                Ultra high-probability questions
-              </h2>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-xl font-semibold">
+                  Ultra high-probability questions
+                </h2>
+                <Link
+                  href={`/study/${bookId}`}
+                  className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-black"
+                >
+                  Start study loop →
+                </Link>
+              </div>
               <ol className="mt-3 flex flex-col gap-3">
                 {data.questions.map((q) => (
                   <QuestionCard key={q.id} q={q} />
