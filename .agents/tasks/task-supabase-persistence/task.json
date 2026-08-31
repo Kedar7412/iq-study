@@ -1,0 +1,7 @@
+{
+  "task_id": "task-supabase-persistence",
+  "task_description": "Fix the production 'User not found.' bug (in-memory user store is empty on a fresh Vercel serverless isolate after login) by replacing the three in-memory module-singleton stores (users, books, reviews) with hosted-Supabase-Postgres-backed implementations behind the UNCHANGED store interfaces. Backend is selected at construction time: Supabase when SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY are present, otherwise fall back to the existing in-memory stores so build/tests/lint/dev stay green keyless. Add pure mapper unit tests, and update .env.example + README.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null
+}

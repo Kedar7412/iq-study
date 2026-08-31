@@ -1,0 +1,26 @@
+{
+  "id": "FEAT-001",
+  "type": "chore",
+  "description": "Environment setup, add @supabase/supabase-js, and create a server-only Supabase admin client. Confirms the keyless baseline is green before any store changes. This is the dependency foundation FEAT-002 builds on.",
+  "status": "completed",
+  "steps": [
+    "Run environment setup: `source ~/.nvm/nvm.sh && nvm use 22 && npm install`. Confirm baseline is green by running `npm run lint`, `npm run typecheck`, `npm test` (expect 79 tests / 15 files pass), and `npm run build`. All must pass KEYLESS (no SUPABASE_* env set).",
+    "Add the runtime dependency: `source ~/.nvm/nvm.sh && nvm use 22 && npm install @supabase/supabase-js`. This updates package.json (dependencies) and package-lock.json. Do not add it to devDependencies.",
+    "Create `src/lib/supabase/server.ts`: a server-only module that reads `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` from `process.env`. Export `isSupabaseConfigured(): boolean` returning true only when BOTH env vars are present and non-empty. Export `getSupabaseAdmin(): SupabaseClient` that lazily creates (and memoizes on globalThis in non-production, mirroring the existing store singleton HMR pattern) a client via `createClient(url, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } })`. It must throw a clear Error if called when not configured. NEVER hardcode the key; read only from env. Add a file-top doc comment stating this module is server-only and must never be imported into a client component, and that the service_role key bypasses RLS.",
+    "Do NOT wire the stores yet (that is FEAT-002). Ensure the new module type-checks and lints even though it is not yet imported anywhere (a barrel or a direct import in FEAT-002 will consume it)."
+  ],
+  "acceptance_criteria": [
+    "`@supabase/supabase-js` appears under dependencies in package.json and is present in package-lock.json.",
+    "src/lib/supabase/server.ts exists, exports isSupabaseConfigured() and getSupabaseAdmin(), reads SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY from process.env, and creates the client with auth.persistSession=false and auth.autoRefreshToken=false.",
+    "No hardcoded Supabase keys anywhere in the source.",
+    "Keyless verification stays green: `npm run lint`, `npm run typecheck`, `npm test` (79 tests / 15 files), `npm run build` all pass with no SUPABASE_* env set."
+  ],
+  "verification": [
+    "source ~/.nvm/nvm.sh && nvm use 22 && npm run lint",
+    "source ~/.nvm/nvm.sh && nvm use 22 && npm run typecheck",
+    "source ~/.nvm/nvm.sh && nvm use 22 && npm test",
+    "source ~/.nvm/nvm.sh && nvm use 22 && npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": "Baseline verified green KEYLESS before and after changes: lint clean, typecheck clean, 79 tests / 15 files pass, build succeeds. Installed @supabase/supabase-js ^2.112.4 (dependencies) via npm install; package-lock.json updated (8 packages added, 0 vulnerabilities). Created src/lib/supabase/server.ts exporting isSupabaseConfigured() (true only when both SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are non-empty) and getSupabaseAdmin() (lazy, memoized on globalThis.__iqStudySupabaseAdmin in non-production mirroring the store HMR pattern, created with auth:{persistSession:false, autoRefreshToken:false}, throws a clear Error when not configured). Config read from process.env only; no hardcoded keys (grep confirmed no publishable/service_role/JWT/project-ref strings in src). Module is intentionally unused until FEAT-002 wires the stores; it type-checks and lints cleanly. Node 22 via `source ~/.nvm/nvm.sh && nvm use 22` required for all npm commands."
+}
