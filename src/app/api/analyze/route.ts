@@ -70,6 +70,9 @@ export async function POST(request: Request): Promise<NextResponse> {
     const questions = await generateQuestions(analysis, provider, {
       curriculum,
       count,
+      // Pass the source chunks so each concept's reference answer is grounded in
+      // its own source text, not just the book-level summary.
+      chunks: book.chunks,
     });
 
     await store.saveAnalysis(bookId, session.sub, {
