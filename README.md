@@ -41,7 +41,9 @@ build, tests, local dev, and preview deployments all work with zero configuratio
   `scheduler` (pure SM-2 spaced repetition), `session` (adaptive due-card selection + mastery),
   `conceptMap` (concept web derivation), and `prompt` (learning-style-aware copy).
 - **`src/lib/store`** — persistence behind small interfaces: `books`, `users`, and `reviews`.
-  All are in-memory module singletons for MVP (see the persistence caveat below).
+  Each store selects its backend at construction: durable hosted Supabase Postgres when
+  `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` are set, otherwise an in-memory module
+  singleton as the automatic keyless fallback (see the persistence section below).
 - **`src/lib/auth`** — pure JWT sign/verify (`token`) plus cookie helpers (`session`).
 - **`src/proxy.ts`** — route gating for authenticated pages.
 
@@ -80,10 +82,18 @@ See [`.env.example`](./.env.example) for the full list. Copy it to `.env.local` 
 | `OPENAI_API_KEY` | No       | OpenAI API key. When empty, the app falls back to a deterministic mock AI provider.          |
 | `LLM_PROVIDER`   | No       | AI provider: `openai` or `mock`. Defaults to `mock` when no `OPENAI_API_KEY` is present.     |
 | `AUTH_SECRET`    | No\*     | Secret used to sign session JWTs (HS256). When unset, a documented dev-only fallback is used. |
+| `SUPABASE_URL`   | No\*\*   | Supabase project URL. Enables durable Postgres persistence when paired with the service_role key. |
+| `SUPABASE_SERVICE_ROLE_KEY` | No\*\* | **Secret** service_role key (Supabase dashboard → Project Settings → API). Server-side only; bypasses RLS. |
 
 \* `AUTH_SECRET` is optional in dev/CI so everything works keyless, but **production deployments
 MUST set a long random `AUTH_SECRET`**. Without it, sessions are signed with a well-known
 fallback key and are trivially forgeable.
+
+\*\* `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are optional for keyless dev/CI/preview, but
+**both are required for durable production persistence**. When either is empty/unset the stores
+fall back to in-memory (non-durable). The service_role key is a secret that bypasses row-level
+security — keep it server-side only and never commit it. All DB access is server-side, so no
+`NEXT_PUBLIC_*` variables are needed.
 
 The app is designed to build and run with **no AI provider key present** (mock fallback) and
 **no `AUTH_SECRET`** (dev fallback), so CI, local dev, and preview deployments all work keyless.
@@ -116,10 +126,14 @@ IQ Study ships a minimal, provider-free auth suitable for Vercel:
   and dominant style), persisted per user via `POST /api/onboarding` and read via
   `GET /api/onboarding`. After login, users without a profile are routed to onboarding.
 
-**Persistence caveat**: the user store (like the book store) is in-memory for MVP. On Vercel's
-serverless runtime each invocation may run in a fresh isolate, so accounts written by one
-request are not guaranteed to be visible to another. Swap in a durable store (SQLite / Postgres
-/ Redis) before relying on cross-request persistence in production.
+**Persistence**: the user store (like the book and review stores) persists durably to hosted
+Supabase Postgres when `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are set. This works behind
+the unchanged `UserStore` / `BookStore` / `ReviewStore` interfaces, so callers are unaffected. The
+app manages its own cookie/JWT auth (it does **not** use Supabase Auth); the server connects with
+the service_role key, which bypasses the tables' enabled-but-policy-less RLS. When either variable
+is absent, the stores fall back to an in-memory implementation — convenient for local dev / CI /
+preview, but non-durable: on Vercel's serverless runtime each invocation may run in a fresh
+isolate, so data written by one request is not guaranteed to be visible to another.
 
 ## Adaptive study loop
 
@@ -148,8 +162,8 @@ engine — the "help your brain remember" and "web forming in your brain" parts 
   deck, and returns the next card and updated mastery. Both require a session and validate with
   zod.
 
-Review state lives in an in-memory store (`src/lib/store/reviews.ts`); the same production
-persistence caveat applies.
+Review state lives in `src/lib/store/reviews.ts`, which uses the same Supabase-or-in-memory
+backend selection described above.
 
 ## Deployment (Vercel)
 
@@ -164,14 +178,20 @@ hold no long-lived local state, so the app is serverless-friendly.
    - `OPENAI_API_KEY` — optional. Omit it to run on the deterministic mock provider.
    - `LLM_PROVIDER` — optional. Set to `openai` (with a key) or leave as `mock`.
    - `OPENAI_MODEL` — optional. Defaults to `gpt-4o-mini` when using OpenAI.
+   - `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` — set **both** for durable persistence
+     (Production / Preview). `SUPABASE_SERVICE_ROLE_KEY` is a **secret** (Supabase dashboard →
+     Project Settings → API → service_role key) that bypasses row-level security, so store it
+     only as an encrypted environment variable and never commit it. Without both, the app runs
+     on the non-durable in-memory store.
 3. Deploy. Vercel runs `next build` and serves the app.
 
-**Production persistence**: the book, user, and review stores are **in-memory and dev-only**.
-On Vercel each serverless invocation may run in a fresh isolate, so data written by one request
-is not guaranteed to be visible to another. Before relying on cross-request persistence in
-production, swap the store implementations for a hosted database (e.g. Postgres via Neon/Supabase,
-or Vercel KV/Redis). The store interfaces (`BookStore`, `UserStore`, `ReviewStore`) exist so this
-swap requires no changes to callers.
+**Production persistence**: the book, user, and review stores persist durably to hosted Supabase
+Postgres when `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are configured. The database schema is
+managed on the hosted Supabase project (there is no migration tooling in this repo). If either
+variable is unset, the stores fall back to the **in-memory** backend, which is dev-only: on Vercel
+each serverless invocation may run in a fresh isolate, so data written by one request is not
+guaranteed to be visible to another. The store interfaces (`BookStore`, `UserStore`, `ReviewStore`)
+are unchanged, so backend selection requires no changes to callers.
 
 ## MVP scope + roadmap / assumptions
 
@@ -181,12 +201,14 @@ swap requires no changes to callers.
 - Book upload + parsing (PDF/plain text) with deterministic chunking.
 - Curriculum-aware analysis and ranked high-probability exam questions.
 - A 10-question learning-style profile and an adaptive SM-2 study loop with a concept web.
+- Durable persistence via hosted Supabase Postgres when configured, with an in-memory fallback.
 - Fully keyless operation via a mock AI provider and a dev-only auth fallback.
 
 **Assumptions / simplifications:**
 
-- Persistence is in-memory (per process). Fine for local dev and demos; not durable in
-  production or across serverless isolates.
+- Persistence is durable via Supabase Postgres when `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`
+  are set; otherwise it falls back to an in-memory (per-process) store. The fallback is fine for
+  local dev and demos but is not durable in production or across serverless isolates.
 - Self-graded recall (0-5) drives scheduling; there is no automatic answer grading.
 - The concept web uses a simple deterministic circular layout, not a force-directed graph.
 - The mock provider produces deterministic, heuristic analysis/questions rather than
@@ -194,7 +216,6 @@ swap requires no changes to callers.
 
 **Roadmap / future work:**
 
-- A real hosted database (Postgres/Redis) behind the existing store interfaces.
 - Streaming AI responses and richer parsers (EPUB, DOCX, images/OCR).
 - Auto-graded free-text answers and confidence calibration.
 - Force-directed, interactive concept-map visualization.

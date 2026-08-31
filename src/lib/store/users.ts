@@ -12,6 +12,8 @@
  */
 
 import type { LearningProfile } from "@/lib/study/learningProfile";
+import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase/server";
+import { userFromRow, userToRow } from "@/lib/supabase/mappers";
 
 /** A stored user account. */
 export interface StoredUser {
@@ -78,13 +80,58 @@ class InMemoryUserStore implements UserStore {
   }
 }
 
+/** Durable Supabase-backed implementation (service_role, bypasses RLS). */
+class SupabaseUserStore implements UserStore {
+  async create(user: StoredUser): Promise<void> {
+    const { error } = await getSupabaseAdmin()
+      .from("users")
+      .insert(userToRow(user));
+    if (error) throw new Error(`Failed to create user: ${error.message}`);
+  }
+
+  async getById(id: string): Promise<StoredUser | undefined> {
+    const { data, error } = await getSupabaseAdmin()
+      .from("users")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    if (error) throw new Error(`Failed to load user: ${error.message}`);
+    return data ? userFromRow(data) : undefined;
+  }
+
+  async getByEmail(email: string): Promise<StoredUser | undefined> {
+    const { data, error } = await getSupabaseAdmin()
+      .from("users")
+      .select("*")
+      .eq("email", normalizeEmail(email))
+      .maybeSingle();
+    if (error) throw new Error(`Failed to load user: ${error.message}`);
+    return data ? userFromRow(data) : undefined;
+  }
+
+  async saveProfile(
+    id: string,
+    profile: LearningProfile,
+  ): Promise<StoredUser | undefined> {
+    const { data, error } = await getSupabaseAdmin()
+      .from("users")
+      .update({ learning_profile: profile })
+      .eq("id", id)
+      .select("*")
+      .maybeSingle();
+    if (error) throw new Error(`Failed to save profile: ${error.message}`);
+    return data ? userFromRow(data) : undefined;
+  }
+}
+
 // Module singleton. In dev this survives HMR via a global cache.
 const globalForUserStore = globalThis as unknown as {
   __iqStudyUserStore?: UserStore;
 };
 
 const store: UserStore =
-  globalForUserStore.__iqStudyUserStore ?? new InMemoryUserStore();
+  globalForUserStore.__iqStudyUserStore ??
+  (isSupabaseConfigured() ? new SupabaseUserStore() : new InMemoryUserStore());
 
 if (process.env.NODE_ENV !== "production") {
   globalForUserStore.__iqStudyUserStore = store;

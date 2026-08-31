@@ -1,0 +1,45 @@
+{
+  "project_type": "Next.js 16 (App Router) + TypeScript web app ('IQ Study'), React 19, Tailwind v4, deployed to Vercel",
+  "language": "TypeScript",
+  "build_system": "npm scripts. Node 22 via nvm. In this sandbox Node is NOT on PATH by default: run `source ~/.nvm/nvm.sh && nvm use 22` before any npm command.",
+  "test_framework": "Vitest (vitest.config.mts, jsdom env by default, globals on, alias @ -> ./src). Tests colocated in __tests__ dirs. Route-handler tests use `// @vitest-environment node` and mock @/lib/auth/session, seeding the REAL in-memory store singletons via getBookStore()/getUserStore().",
+  "build_command": "source ~/.nvm/nvm.sh && nvm use 22 && npm run build",
+  "test_command": "source ~/.nvm/nvm.sh && nvm use 22 && npm test",
+  "verification_instructions": "All four must stay green KEYLESS (no SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY set): `npm run lint`, `npm run typecheck`, `npm test` (baseline 79 tests / 15 files), `npm run build`. Prefix each with `source ~/.nvm/nvm.sh && nvm use 22 &&`.",
+  "snapshot_or_generated_files": "AGENTS.md contains an auto-generated nextjs-agent-rules block re-added by `next dev`; not relevant here. No test snapshots. next-env.d.ts is generated.",
+  "setup_instructions": "source ~/.nvm/nvm.sh && nvm use 22 && npm install (deps already installed in node_modules).",
+  "environment_constraints": "network_mode OPEN_INTERNET: npm installs and external network work, so `npm install @supabase/supabase-js` is fine. However verification must NOT require a live DB or any secret: the Supabase service_role key is intentionally NOT available to this agent. Keep everything keyless by falling back to in-memory stores when env vars are absent.",
+  "contribution_requirements": "Work lands on the current feature branch (feat/iq-study-mvp is checked out; orchestrator handles branch/PR/push). Do NOT push, do NOT open PRs, do NOT deploy. Never hardcode the service_role key. Commit changes to the working tree only.",
+  "key_patterns": "Each store (users.ts, index.ts=books, reviews.ts) defines a TS interface, an InMemory* class implementing it, and a module-singleton `store` cached on globalThis in non-production for HMR, exposed via get*Store(). Callers await the async interface methods. Interfaces are already async (Promise-returning) so a DB backend slots in without caller changes. StoredUser/StoredBook/ReviewDeck are camelCase; DB columns are snake_case (see FEAT files for exact mapping). RLS is enabled with NO policies -> server MUST use SERVICE ROLE key (bypasses RLS); never use anon/publishable key server-side for these tables and do NOT add RLS policies.",
+  "relevant_files": [
+    "src/lib/store/users.ts",
+    "src/lib/store/index.ts",
+    "src/lib/store/reviews.ts",
+    "src/app/api/onboarding/route.ts",
+    "src/app/api/__tests__/routeAuth.test.ts",
+    "src/lib/study/__tests__/session.test.ts",
+    "src/lib/study/learningProfile.ts",
+    "src/lib/analyze/types.ts",
+    "src/lib/ingest/parse.ts",
+    "src/lib/ingest/chunk.ts",
+    "src/lib/study/scheduler.ts",
+    "package.json",
+    ".env.example",
+    "README.md",
+    "vitest.config.mts"
+  ],
+  "directory_structure": "src/app = App Router pages + api route handlers; src/lib/store = persistence (users/index=books/reviews); src/lib/auth = jwt+session; src/lib/analyze, src/lib/study, src/lib/ingest, src/lib/llm = domain logic. Tests in colocated __tests__ dirs. New code: src/lib/supabase/ for the server admin client + row<->object mappers.",
+  "supabase": {
+    "note": "Project + schema ALREADY provisioned by orchestrator; do not create/migrate. Read config from env only.",
+    "project_ref": "yuukqpmxaxsqewpgjlbu",
+    "project_url": "https://yuukqpmxaxsqewpgjlbu.supabase.co",
+    "publishable_key": "sb_publishable_E6vEZvOFpKxWW-DplE9h-w_VPG7-NxQ",
+    "service_role_key": "SECRET - not available to this agent; read from SUPABASE_SERVICE_ROLE_KEY env at runtime only, never hardcode",
+    "tables": {
+      "public.users": "id text pk, email text unique, password_hash text, learning_profile jsonb null, created_at bigint",
+      "public.books": "book_id text pk, user_id text fk->users.id, meta jsonb, text text, chunks jsonb, created_at bigint, curriculum jsonb null, analysis jsonb null, questions jsonb null, analyzed_at bigint null; index (user_id, created_at desc)",
+      "public.review_decks": "user_id text fk, book_id text fk, cards jsonb default '[]', pk(user_id, book_id)"
+    },
+    "rls": "ENABLED on all three tables with NO policies (intentional). Server connects with SERVICE ROLE key which bypasses RLS. App uses its OWN cookie/JWT auth, NOT Supabase Auth."
+  }
+}

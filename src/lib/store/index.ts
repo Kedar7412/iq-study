@@ -18,6 +18,8 @@ import type {
   Curriculum,
   ExamQuestion,
 } from "@/lib/analyze/types";
+import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase/server";
+import { bookFromRow, bookToRow } from "@/lib/supabase/mappers";
 
 /** A fully ingested book record. */
 export interface StoredBook {
@@ -117,13 +119,66 @@ class InMemoryBookStore implements BookStore {
   }
 }
 
+/** Durable Supabase-backed implementation (service_role, bypasses RLS). */
+class SupabaseBookStore implements BookStore {
+  async save(book: StoredBook): Promise<void> {
+    const { error } = await getSupabaseAdmin()
+      .from("books")
+      .upsert(bookToRow(book), { onConflict: "book_id" });
+    if (error) throw new Error(`Failed to save book: ${error.message}`);
+  }
+
+  async get(bookId: string, userId: string): Promise<StoredBook | undefined> {
+    const { data, error } = await getSupabaseAdmin()
+      .from("books")
+      .select("*")
+      .eq("book_id", bookId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (error) throw new Error(`Failed to load book: ${error.message}`);
+    return data ? bookFromRow(data) : undefined;
+  }
+
+  async list(userId: string): Promise<StoredBook[]> {
+    const { data, error } = await getSupabaseAdmin()
+      .from("books")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(`Failed to list books: ${error.message}`);
+    return (data ?? []).map(bookFromRow);
+  }
+
+  async saveAnalysis(
+    bookId: string,
+    userId: string,
+    result: AnalysisResult,
+  ): Promise<StoredBook | undefined> {
+    const { data, error } = await getSupabaseAdmin()
+      .from("books")
+      .update({
+        curriculum: result.curriculum,
+        analysis: result.analysis,
+        questions: result.questions,
+        analyzed_at: Date.now(),
+      })
+      .eq("book_id", bookId)
+      .eq("user_id", userId)
+      .select("*")
+      .maybeSingle();
+    if (error) throw new Error(`Failed to save analysis: ${error.message}`);
+    return data ? bookFromRow(data) : undefined;
+  }
+}
+
 // Module singleton. In dev this survives HMR via a global cache.
 const globalForStore = globalThis as unknown as {
   __iqStudyBookStore?: BookStore;
 };
 
 const store: BookStore =
-  globalForStore.__iqStudyBookStore ?? new InMemoryBookStore();
+  globalForStore.__iqStudyBookStore ??
+  (isSupabaseConfigured() ? new SupabaseBookStore() : new InMemoryBookStore());
 
 if (process.env.NODE_ENV !== "production") {
   globalForStore.__iqStudyBookStore = store;
