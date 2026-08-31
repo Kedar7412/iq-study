@@ -7,6 +7,7 @@
  */
 
 import OpenAI from "openai";
+import { parseJSONResponse } from "./json";
 import type { CompleteOptions, LLMProvider } from "./types";
 
 /** Default model; overridable via the `OPENAI_MODEL` env var. */
@@ -64,6 +65,6 @@ export class OpenAIProvider implements LLMProvider {
       ],
     });
     const content = response.choices[0]?.message?.content ?? "{}";
-    return parse(JSON.parse(content));
+    return parse(parseJSONResponse(content));
   }
 }

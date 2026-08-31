@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Add a Grok/xAI LLM provider and wire it into the provider factory, keeping the existing OpenAI path and the deterministic mock fallback intact. xAI's API is OpenAI-compatible, so reuse the official `openai` SDK with a different base URL. This is the core of making the app use Grok's API. Depends on FEAT-001.",
-  "status": "pending",
+  "status": "completed",
   "steps": [
     "Create `src/lib/llm/xai.ts` exporting `class XAIProvider implements LLMProvider` with `readonly name = 'xai'`. Model it closely on `src/lib/llm/openai.ts`.",
     "Constructor signature `constructor(apiKey: string)`: throw only when called with an empty key (matching OpenAIProvider's guard), never validate the network. Build the client with `new OpenAI({ apiKey, baseURL: 'https://api.x.ai/v1' })` (import `OpenAI` from the existing `openai` dependency). Read the model from `process.env.XAI_MODEL` with a sensible default constant `DEFAULT_MODEL = 'grok-3-mini'` (a cost-effective current xAI chat model; document it as overridable via XAI_MODEL). Importing this module must not trigger any key check or network call.",
@@ -24,5 +24,5 @@
     "source ~/.nvm/nvm.sh && nvm use 22 && npm test"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Implemented XAIProvider in src/lib/llm/xai.ts using the openai SDK with baseURL https://api.x.ai/v1, model from XAI_MODEL default grok-3-mini. Constructor throws only on empty key; no network/key check at import. completeJSON uses response_format {type:'json_object'} AND appends an explicit JSON-only instruction to the system prompt (defensive against models that ignore response_format), then parses via the new parseJSONResponse helper. Added src/lib/llm/json.ts with exported parseJSONResponse: strips ```json/``` fences, tries direct JSON.parse, then extracts the first balanced {...} object (string/escape aware so braces inside strings don't break nesting), throws a clear Error on failure. Refactored OpenAIProvider.completeJSON to reuse parseJSONResponse. Updated getLLMProvider selection order: (1) LLM_PROVIDER=xai+XAI_API_KEY -> XAIProvider; (2) LLM_PROVIDER=openai+OPENAI_API_KEY -> OpenAIProvider; (3) no explicit provider + XAI_API_KEY -> XAIProvider (auto); (4) else MockProvider. Exported XAIProvider and parseJSONResponse from index. LLMProvider interface unchanged. Documented XAI_API_KEY/XAI_MODEL/LLM_PROVIDER options in .env.example. Verification keyless: typecheck, lint, test (104 passed, up from 93; +7 json tests, +3 xai selection tests, +1 xai-no-key mock test), and build all green. No API key hardcoded; all keys read from process.env. Selection tests reuse the existing jsdom OpenAI-SDK browser-guard pattern to assert 'real provider' without a network call. Note: .env.example already contained a hardcoded SUPABASE_URL from a prior task; left untouched as out of scope."
 }
