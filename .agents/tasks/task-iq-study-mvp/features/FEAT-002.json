@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Build the book ingestion pipeline and the pluggable LLM provider abstraction. Users upload a book file; the app extracts plain text and chunks it. A clean LLMProvider interface hides the AI backend, with an OpenAI-backed provider (used only when a key is present) and a deterministic MockProvider used by default so the app builds/runs/tests fully keyless. Depends on FEAT-001.",
-  "status": "pending",
+  "status": "completed",
   "steps": [
     "Create src/lib/ingest/parse.ts: accept an uploaded file buffer + filename/mimetype and extract plain text. Support .txt and .md natively, and .pdf via a serverless-friendly parser (e.g. pdf-parse or unpdf). Return { text, meta }. Handle unsupported types with a clear typed error.",
     "Create src/lib/ingest/chunk.ts: split extracted text into overlapping token-ish chunks (e.g. ~1000 chars with 150 overlap) returning an array of { index, text }. Keep it deterministic and unit-testable.",
@@ -27,5 +27,5 @@
     "source ~/.nvm/nvm.sh && nvm use 22 && npm run build"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Implemented fully keyless. Deps added: openai, zod, unpdf (chosen over pdf-parse as it is serverless-friendly with no native bindings and builds cleanly under Next 16/Turbopack). Files: src/lib/ingest/{parse,chunk}.ts, src/lib/llm/{types,mock,openai,index}.ts, src/lib/store/index.ts (in-memory singleton BookStore behind an interface; documented Vercel cross-request non-persistence limitation), src/app/api/upload/route.ts (nodejs runtime, zod validation, 10MB max), src/app/upload/page.tsx. Tests: 21 pass. NOTE: the OpenAI SDK refuses to instantiate under Vitest's jsdom environment ('browser-like environment' guard); the getLLMProvider openai-selection test tolerates that thrown guard as proof the factory routed to OpenAIProvider (works normally in Node/serverless). getLLMProvider never throws in the keyless path and returns MockProvider by default. Verified: npm test, npm run typecheck, npm run lint, npm run build all pass with no API key. Env: added optional OPENAI_MODEL to .env.example (defaults gpt-4o-mini)."
 }
